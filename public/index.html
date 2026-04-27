@@ -1,0 +1,3316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tiki Topple</title>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ═══════════════════════════════════════════════════
+       CUSTOM PROPERTIES
+    ═══════════════════════════════════════════════════ */
+    :root {
+      --wood-dark:   #1a0800;
+      --wood-mid:    #3d1f0a;
+      --wood-light:  #6b3a1f;
+      --cardboard:   #c8945a;
+      --card-cream:  #f5ead0;
+      --gold:        #d4af37;
+      --torch-glow:  #ff6b1a;
+      --text-light:  #f5ead0;
+      --text-dark:   #1a0800;
+      --tiki-groove: #0d0400;
+
+      --shadow-deep: 0 4px 16px rgba(0,0,0,0.7);
+      --transition:  0.2s ease;
+    }
+
+    /* ═══════════════════════════════════════════════════
+       RESET & BASE
+    ═══════════════════════════════════════════════════ */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    body {
+      position: relative;
+      font-family: 'Crimson Text', Georgia, serif;
+      color: var(--text-light);
+
+      /* Dark wood grain: three overlapping stripe layers at subtle angles */
+      background-color: var(--wood-dark);
+      background-image:
+        repeating-linear-gradient(
+          1deg,
+          transparent           0px,
+          transparent           5px,
+          rgba(107,58,31,0.07)  5px,
+          rgba(107,58,31,0.07)  6px
+        ),
+        repeating-linear-gradient(
+          -0.6deg,
+          transparent          0px,
+          transparent          9px,
+          rgba(61,31,10,0.10)  9px,
+          rgba(61,31,10,0.10) 10px
+        ),
+        repeating-linear-gradient(
+          2.2deg,
+          transparent          0px,
+          transparent         15px,
+          rgba(26,8,0,0.08)   15px,
+          rgba(26,8,0,0.08)   16px
+        );
+    }
+
+    h1, h2, h3,
+    .game-title,
+    .screen-heading {
+      font-family: 'Cinzel Decorative', cursive;
+    }
+
+    /* ═══════════════════════════════════════════════════
+       SCREEN SYSTEM
+       All screens stack in the same viewport slot.
+       Only .active is shown.
+    ═══════════════════════════════════════════════════ */
+    .screen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      overflow-y: auto;
+    }
+
+    .screen.active {
+      display: flex;
+    }
+
+    /* Home screen centres its content vertically */
+    #screen-home.active {
+      justify-content: center;
+    }
+
+    /* Lobby / round-end / game-over scroll from top with breathing room */
+    #screen-lobby.active,
+    #screen-round-end.active,
+    #screen-game-over.active {
+      justify-content: flex-start;
+      padding: 48px 24px 40px;
+    }
+
+    /* Game screen is a rigid header + fluid main — no scroll */
+    #screen-game.active {
+      justify-content: flex-start;
+      overflow: hidden;
+    }
+
+    /* ═══════════════════════════════════════════════════
+       SHARED COMPONENTS — BUTTONS
+    ═══════════════════════════════════════════════════ */
+    button {
+      font-family: 'Cinzel Decorative', cursive;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--card-cream);
+      background: var(--wood-mid);
+      border: 2px solid var(--gold);
+      border-radius: 4px;
+      padding: 12px 28px;
+      cursor: pointer;
+      transition: background var(--transition), box-shadow var(--transition), transform var(--transition);
+      white-space: nowrap;
+    }
+
+    button:hover {
+      background: var(--wood-light);
+      box-shadow: 0 0 12px rgba(212,175,55,0.4);
+      transform: translateY(-1px);
+    }
+
+    button:active {
+      transform: translateY(0);
+      box-shadow: none;
+    }
+
+    button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    /* ═══════════════════════════════════════════════════
+       SHARED COMPONENTS — INPUTS
+    ═══════════════════════════════════════════════════ */
+    input[type="text"] {
+      font-family: 'Crimson Text', Georgia, serif;
+      font-size: 1.1rem;
+      color: var(--text-light);
+      background: rgba(0,0,0,0.4);
+      border: 1px solid var(--cardboard);
+      border-radius: 4px;
+      padding: 10px 16px;
+      width: 100%;
+      outline: none;
+      transition: border-color var(--transition), box-shadow var(--transition);
+    }
+
+    input[type="text"]::placeholder {
+      color: rgba(245,234,208,0.4);
+    }
+
+    input[type="text"]:focus {
+      border-color: var(--gold);
+      box-shadow: 0 0 8px rgba(212,175,55,0.3);
+    }
+
+    /* ═══════════════════════════════════════════════════
+       SHARED COMPONENTS — ERROR MESSAGES
+    ═══════════════════════════════════════════════════ */
+    .error-msg {
+      font-family: 'Crimson Text', serif;
+      font-style: italic;
+      font-size: 0.95rem;
+      color: #e74c3c;
+      min-height: 1.4em;
+      text-align: center;
+    }
+
+    /* ═══════════════════════════════════════════════════
+       SCREEN — HOME
+    ═══════════════════════════════════════════════════ */
+    #screen-home {
+      gap: 0;
+    }
+
+    /* Decorative torch glow behind the title */
+    #screen-home::before {
+      content: '';
+      position: absolute;
+      top: -10%;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 600px;
+      height: 600px;
+      background: radial-gradient(ellipse at 50% 30%, rgba(255,107,26,0.12) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .game-title {
+      font-family: 'Cinzel Decorative', cursive;
+      font-weight: 900;
+      font-size: clamp(2.6rem, 9vw, 5.5rem);
+      color: var(--gold);
+      letter-spacing: 6px;
+      text-align: center;
+      text-shadow:
+        0 0 24px rgba(212,175,55,0.55),
+        0 2px 4px rgba(0,0,0,0.9),
+        0 6px 16px rgba(0,0,0,0.6);
+      margin-bottom: 10px;
+      position: relative;
+    }
+
+    .game-subtitle {
+      font-family: 'Crimson Text', serif;
+      font-style: italic;
+      font-size: clamp(0.95rem, 2.5vw, 1.25rem);
+      color: var(--cardboard);
+      letter-spacing: 3px;
+      text-align: center;
+      margin-bottom: 52px;
+    }
+
+    .home-card {
+      background: rgba(26,8,0,0.65);
+      border: 1px solid rgba(200,148,90,0.3);
+      border-radius: 6px;
+      padding: 36px 48px;
+      width: min(420px, 92vw);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      box-shadow: var(--shadow-deep);
+      backdrop-filter: blur(4px);
+    }
+
+    .home-btn-row {
+      display: flex;
+      gap: 12px;
+    }
+
+    .home-btn-row button {
+      flex: 1;
+    }
+
+    #join-form {
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    #join-form.visible {
+      display: flex;
+    }
+
+    #room-code-input {
+      text-transform: uppercase;
+      letter-spacing: 8px;
+      font-size: 1.4rem;
+      text-align: center;
+    }
+
+    /* ═══════════════════════════════════════════════════
+       SCREEN — LOBBY
+    ═══════════════════════════════════════════════════ */
+    #screen-lobby {
+      gap: 24px;
+    }
+
+    .room-code-display {
+      font-family: 'Crimson Text', serif;
+      font-size: 1.1rem;
+      color: var(--cardboard);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    #lobby-room-code {
+      font-family: 'Cinzel Decorative', cursive;
+      font-size: 2.2rem;
+      font-weight: 700;
+      color: var(--gold);
+      letter-spacing: 10px;
+      text-shadow: 0 0 12px rgba(212,175,55,0.4);
+    }
+
+    #btn-copy-code {
+      padding: 6px 14px;
+      font-size: 0.65rem;
+    }
+
+    .lobby-panel {
+      background: rgba(26,8,0,0.65);
+      border: 1px solid rgba(200,148,90,0.3);
+      border-radius: 6px;
+      padding: 28px 36px;
+      width: min(480px, 92vw);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      box-shadow: var(--shadow-deep);
+    }
+
+    .lobby-panel h2 {
+      font-size: 1rem;
+      color: var(--cardboard);
+      letter-spacing: 4px;
+      border-bottom: 1px solid rgba(200,148,90,0.25);
+      padding-bottom: 10px;
+    }
+
+    #player-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      min-height: 80px;
+    }
+
+    /* Individual player pill — filled in by JS */
+    .player-pill {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: rgba(61,31,10,0.5);
+      border: 1px solid rgba(200,148,90,0.2);
+      border-radius: 4px;
+      padding: 10px 14px;
+      font-size: 1.05rem;
+    }
+
+    .player-pill .player-color-dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      box-shadow: 0 0 6px currentColor;
+    }
+
+    .player-pill .host-badge {
+      margin-left: auto;
+      font-family: 'Cinzel Decorative', cursive;
+      font-size: 0.55rem;
+      color: var(--gold);
+      border: 1px solid var(--gold);
+      border-radius: 3px;
+      padding: 2px 6px;
+      letter-spacing: 1px;
+    }
+
+    #lobby-status {
+      font-style: italic;
+      color: var(--cardboard);
+      font-size: 1rem;
+      text-align: center;
+    }
+
+    #btn-start-game {
+      display: none;
+      align-self: center;
+    }
+
+    #btn-start-game.visible {
+      display: inline-block;
+    }
+
+    /* ═══════════════════════════════════════════════════
+       SCREEN — GAME
+    ═══════════════════════════════════════════════════ */
+    #screen-game {
+      overflow: hidden;
+    }
+
+    .game-header {
+      width: 100%;
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      padding: 10px 20px;
+      background: rgba(13,4,0,0.8);
+      border-bottom: 1px solid rgba(212,175,55,0.2);
+      flex-shrink: 0;
+      gap: 12px;
+      z-index: 10;
+    }
+
+    #round-indicator {
+      font-family: 'Cinzel Decorative', cursive;
+      font-size: 0.7rem;
+      color: var(--cardboard);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    #scores-bar {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    /* Score pills */
+    .score-pill {
+      font-family: 'Crimson Text', serif;
+      font-size: 0.95rem;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      background: rgba(13,4,0,0.75);
+      border: 1px solid rgba(200,148,90,0.18);
+      border-radius: 22px;
+      padding: 4px 12px 4px 5px;
+      transition: border-color 0.35s, box-shadow 0.35s;
+    }
+
+    .score-pill .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      box-shadow: 0 0 5px currentColor;
+    }
+
+    .score-pill .player-name-short {
+      font-size: 0.82rem;
+      color: var(--cardboard);
+      max-width: 64px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .score-pill .score-val {
+      font-weight: 600;
+      color: var(--card-cream);
+      min-width: 16px;
+      text-align: right;
+    }
+
+    .score-pill.active-turn {
+      border-color: var(--gold);
+      box-shadow: 0 0 12px rgba(212,175,55,0.45);
+    }
+
+    .score-pill.active-turn .score-val { color: var(--gold); }
+
+    /* Turn indicator */
+    @keyframes turnPulse {
+      0%,100% { text-shadow: 0 0 8px rgba(212,175,55,0.45); opacity: 1; }
+      50%      { text-shadow: 0 0 20px rgba(212,175,55,1.0), 0 0 38px rgba(255,107,26,0.3); opacity: 0.88; }
+    }
+
+    #turn-indicator {
+      font-family: 'Cinzel Decorative', cursive;
+      font-size: 0.62rem;
+      letter-spacing: 2px;
+      text-align: right;
+      color: rgba(245,234,208,0.55);
+      transition: color 0.3s;
+      white-space: nowrap;
+    }
+
+    #turn-indicator.your-turn  {
+      color: var(--gold);
+      animation: turnPulse 2s ease-in-out infinite;
+    }
+
+    #turn-indicator.card-selected {
+      color: var(--torch-glow);
+      animation: none;
+      text-shadow: 0 0 10px rgba(255,107,26,0.5);
+    }
+
+    .game-main {
+      flex: 1;
+      position: relative;
+      width: 100%;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    #threejs-board-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Force the injected Three.js canvas to always fill its parent */
+    #threejs-board-container canvas {
+      display: block;
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    /* ── UI Overlay container ─────────────────────────────────────────────── */
+    #ui-overlay {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 20;
+    }
+
+    #your-secret-card,
+    #your-action-cards,
+    #btn-rules-help,
+    #rules-tooltip {
+      pointer-events: auto;
+    }
+
+    /* ── Secret Card ──────────────────────────────────────────────────────── */
+    #your-secret-card {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      width: 116px;
+      height: 162px;
+      perspective: 700px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .secret-card-inner {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      transform-style: preserve-3d;
+      transition: transform 0.55s cubic-bezier(0.4,0,0.2,1);
+    }
+
+    #your-secret-card.revealed .secret-card-inner {
+      transform: rotateY(180deg);
+    }
+
+    .secret-card-face,
+    .secret-card-back {
+      position: absolute;
+      inset: 0;
+      border-radius: 8px;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+      box-shadow: 0 6px 22px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.06);
+    }
+
+    /* Back face — shown by default */
+    .secret-card-back {
+      background-color: var(--wood-mid);
+      border: 2px solid rgba(212,175,55,0.45);
+      background-image:
+        repeating-linear-gradient( 45deg, rgba(212,175,55,0.07) 0, rgba(212,175,55,0.07) 1px, transparent 1px, transparent 8px),
+        repeating-linear-gradient(-45deg, rgba(212,175,55,0.07) 0, rgba(212,175,55,0.07) 1px, transparent 1px, transparent 8px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+    }
+
+    .secret-card-back-icon {
+      font-size: 2rem;
+      opacity: 0.65;
+      line-height: 1;
+    }
+
+    .secret-card-back-label {
+      font-family: 'Cinzel Decorative', cursive;
+      font-size: 0.4rem;
+      letter-spacing: 2px;
+      color: var(--gold);
+      text-transform: uppercase;
+      text-align: center;
+      line-height: 1.6;
+    }
+
+    /* Front face — hidden by default (rotated 180°) */
+    .secret-card-face {
+      background:
+        repeating-linear-gradient( 45deg, rgba(139,90,43,0.04) 0, rgba(139,90,43,0.04) 1px, transparent 1px, transparent 6px),
+        repeating-linear-gradient(-45deg, rgba(139,90,43,0.04) 0, rgba(139,90,43,0.04) 1px, transparent 1px, transparent 6px),
+        var(--card-cream);
+      border: 2px solid rgba(139,90,43,0.35);
+      transform: rotateY(180deg);
+      padding: 10px 8px 8px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+    }
+
+    .secret-card-header {
+      font-family: 'Cinzel Decorative', cursive;
+      font-size: 0.36rem;
+      letter-spacing: 1.5px;
+      color: var(--wood-mid);
+      text-transform: uppercase;
+      text-align: center;
+      padding-bottom: 5px;
+      border-bottom: 1px solid rgba(139,90,43,0.28);
+      width: 100%;
+      margin-bottom: 2px;
+    }
+
+    .secret-tiki-swatch {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      border: 2px solid rgba(0,0,0,0.14);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      flex-shrink: 0;
+    }
+
+    .secret-tiki-name {
+      font-family: 'Cinzel Decorative', cursive;
+      font-size: 0.52rem;
+      letter-spacing: 1px;
+      color: var(--wood-dark);
+      text-align: center;
+      margin-top: 1px;
+    }
+
+    .secret-tiki-symbol {
+      font-family: 'Crimson Text', serif;
+      font-style: italic;
+      font-size: 0.72rem;
+      color: var(--wood-light);
+      text-align: center;
+    }
+
+    .secret-divider {
+      width: 85%;
+      height: 1px;
+      background: linear-gradient(to right, transparent, rgba(139,90,43,0.3), transparent);
+      margin: 3px 0;
+    }
+
+    .secret-rows {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      width: 100%;
+      flex: 1;
+      justify-content: flex-end;
+    }
+
+    .secret-row {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-family: 'Crimson Text', serif;
+      font-size: 0.7rem;
+      color: var(--wood-mid);
+      line-height: 1;
+    }
+
+    .secret-tiki-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .secret-pts-badge {
+      margin-left: auto;
+      font-weight: 600;
+      font-size: 0.65rem;
+      color: var(--wood-dark);
+    }
+
+    /* ── Action Cards Fan ─────────────────────────────────────────────────── */
+    #your-action-cards {
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      height: 148px;
+      padding-bottom: 12px;
+      overflow: visible;
+    }
+
+    .game-card {
+      width: 74px;
+      height: 108px;
+      position: relative;
+      flex-shrink: 0;
+      margin: 0 -9px;
+      transform-origin: bottom center;
+      transform: rotate(var(--rot,0deg)) translateY(var(--y-off,0px));
+      transition: transform 0.22s ease, filter 0.22s ease;
+      cursor: pointer;
+      z-index: 1;
+    }
+
+    .game-card:nth-child(1)  { z-index: 1; }
+    .game-card:nth-child(2)  { z-index: 2; }
+    .game-card:nth-child(3)  { z-index: 3; }
+    .game-card:nth-child(4)  { z-index: 4; }
+    .game-card:nth-child(5)  { z-index: 3; }
+    .game-card:nth-child(6)  { z-index: 2; }
+    .game-card:nth-child(7)  { z-index: 1; }
+
+    .game-card:hover:not(.played):not(.not-playable) {
+      transform: rotate(var(--rot,0deg)) translateY(calc(var(--y-off,0px) - 20px)) scale(1.08);
+      z-index: 10;
+      filter: drop-shadow(0 4px 12px rgba(0,0,0,0.6));
+    }
+
+    .game-card.selected {
+      transform: rotate(0deg) translateY(-30px) scale(1.14) !important;
+      z-index: 20 !important;
+      animation: cardGlow 1.1s ease-in-out infinite;
+    }
+
+    @keyframes cardGlow {
+      0%,100% { filter: drop-shadow(0 0 7px rgba(255,107,26,0.65)); }
+      50%      { filter: drop-shadow(0 0 18px rgba(255,107,26,1.0)) drop-shadow(0 0 30px rgba(212,175,55,0.5)); }
+    }
+
+    .game-card.played {
+      opacity: 0.28;
+      cursor: not-allowed;
+      filter: grayscale(0.5);
+    }
+
+    .game-card.not-playable {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .game-card-inner {
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+
+    .game-card-front {
+      position: absolute;
+      inset: 0;
+      border-radius: 7px;
+      background:
+        repeating-linear-gradient( 45deg, rgba(139,90,43,0.03) 0, rgba(139,90,43,0.03) 1px, transparent 1px, transparent 6px),
+        repeating-linear-gradient(-45deg, rgba(139,90,43,0.03) 0, rgba(139,90,43,0.03) 1px, transparent 1px, transparent 6px),
+        var(--card-cream);
+      border: 1.5px solid rgba(139,90,43,0.28);
+      box-shadow: 0 4px 14px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.55);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      padding: 7px 5px 6px;
+      border-top-width: 3px;
+    }
+
+    .game-card[data-type="up_1"] .game-card-front  { border-top-color: #2ecc71; }
+    .game-card[data-type="up_2"] .game-card-front  { border-top-color: #27ae60; }
+    .game-card[data-type="up_3"] .game-card-front  { border-top-color: #1a8a47; }
+    .game-card[data-type="topple"] .game-card-front { border-top-color: #c0392b; }
+    .game-card[data-type="toast"] .game-card-front  { border-top-color: #e67e22; }
+
+    .card-icon {
+      font-size: 1.5rem;
+      line-height: 1;
+      filter: drop-shadow(0 1px 2px rgba(0,0,0,0.2));
+    }
+
+    .card-divider {
+      width: 75%;
+      height: 1px;
+      background: linear-gradient(to right, transparent, rgba(139,90,43,0.32), transparent);
+    }
+
+    .card-label {
+      font-family: 'Cinzel Decorative', cursive;
+      font-size: 0.33rem;
+      letter-spacing: 0.5px;
+      color: var(--wood-dark);
+      text-align: center;
+      text-transform: uppercase;
+      line-height: 1.4;
+      padding: 0 2px;
+    }
+
+    .card-desc {
+      font-family: 'Crimson Text', serif;
+      font-style: italic;
+      font-size: 0.6rem;
+      color: var(--wood-light);
+      text-align: center;
+      line-height: 1.25;
+      padding: 0 3px;
+    }
+
+    /* ── Rules help button ────────────────────────────────────────────────── */
+    #btn-rules-help {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      width: 40px;
+      height: 40px;
+      padding: 0;
+      border-radius: 50%;
+      font-family: 'Crimson Text', serif;
+      font-size: 1.1rem;
+      font-weight: 600;
+      letter-spacing: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1.5px solid rgba(212,175,55,0.45);
+      background: rgba(13,4,0,0.88);
+      backdrop-filter: blur(6px);
+      transition: background var(--transition), box-shadow var(--transition), transform var(--transition);
+    }
+
+    #btn-rules-help:hover {
+      background: rgba(61,31,10,0.95);
+      box-shadow: 0 0 16px rgba(212,175,55,0.4);
+    }
+
+    /* ── Rules tooltip ────────────────────────────────────────────────────── */
+    #rules-tooltip {
+      display: none;
+      position: absolute;
+      bottom: 72px;
+      right: 20px;
+      width: min(270px, 72vw);
+      background: rgba(10,3,0,0.97);
+      border: 1px solid rgba(212,175,55,0.32);
+      border-radius: 8px;
+      pointer-events: auto;
+      z-index: 100;
+      box-shadow: 0 10px 32px rgba(0,0,0,0.85);
+      overflow: hidden;
+    }
+
+    #rules-tooltip.visible {
+      display: block;
+      animation: tooltipIn 0.16s ease;
+    }
+
+    @keyframes tooltipIn {
+      from { opacity: 0; transform: translateY(6px) scale(0.97); }
+      to   { opacity: 1; transform: translateY(0)   scale(1);    }
+    }
+
+    .tooltip-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 11px 14px 9px;
+      border-bottom: 1px solid rgba(212,175,55,0.18);
+    }
+
+    .tooltip-header h3 {
+      font-family: 'Cinzel Decorative', cursive;
+      font-size: 0.58rem;
+      color: var(--gold);
+      letter-spacing: 3px;
+      text-transform: uppercase;
+    }
+
+    .tooltip-close {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 1px solid rgba(200,148,90,0.28);
+      background: transparent;
+      color: var(--cardboard);
+      font-family: 'Crimson Text', serif;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: background var(--transition);
+    }
+
+    .tooltip-close:hover {
+      background: rgba(200,148,90,0.15);
+      box-shadow: none;
+      transform: none;
+    }
+
+    .tooltip-section {
+      padding: 9px 14px;
+      border-bottom: 1px solid rgba(200,148,90,0.09);
+    }
+
+    .tooltip-section:last-child { border-bottom: none; }
+
+    .tooltip-section-title {
+      font-family: 'Cinzel Decorative', cursive;
+      font-size: 0.42rem;
+      color: var(--cardboard);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-bottom: 7px;
+    }
+
+    .tooltip-row {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      padding: 2px 0;
+      font-family: 'Crimson Text', serif;
+      font-size: 0.88rem;
+      color: var(--card-cream);
+      line-height: 1.45;
+    }
+
+    .tooltip-row .tip-pts {
+      margin-left: auto;
+      font-weight: 600;
+      font-size: 0.78rem;
+      color: var(--gold);
+      white-space: nowrap;
+    }
+
+    /* ═══════════════════════════════════════════════════
+       SCREEN — ROUND END
+    ═══════════════════════════════════════════════════ */
+    #screen-round-end {
+      gap: 28px;
+    }
+
+    #screen-round-end h2 {
+      font-size: clamp(1.5rem, 5vw, 2.4rem);
+      color: var(--gold);
+      text-shadow: 0 0 16px rgba(212,175,55,0.4);
+      letter-spacing: 4px;
+      text-align: center;
+    }
+
+    .round-end-panel {
+      background: rgba(26,8,0,0.65);
+      border: 1px solid rgba(200,148,90,0.3);
+      border-radius: 6px;
+      padding: 24px 32px;
+      width: min(560px, 94vw);
+      box-shadow: var(--shadow-deep);
+    }
+
+    .round-end-panel h3 {
+      font-size: 0.7rem;
+      color: var(--cardboard);
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      margin-bottom: 16px;
+      border-bottom: 1px solid rgba(200,148,90,0.2);
+      padding-bottom: 10px;
+    }
+
+    #all-secret-cards-reveal {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    /* Individual revealed secret card — filled by JS */
+    .secret-card-reveal {
+      background: var(--card-cream);
+      color: var(--text-dark);
+      border-radius: 4px;
+      padding: 12px 16px;
+      flex: 1;
+      min-width: 120px;
+      font-size: 0.9rem;
+    }
+
+    .secret-card-reveal .owner-name {
+      font-family: 'Cinzel Decorative', cursive;
+      font-size: 0.6rem;
+      letter-spacing: 2px;
+      margin-bottom: 6px;
+      display: block;
+    }
+
+    #round-scores-breakdown {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .score-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(200,148,90,0.15);
+      font-size: 1rem;
+    }
+
+    .score-row:last-child {
+      border-bottom: none;
+    }
+
+    .score-row .player-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .score-row .pts {
+      margin-left: auto;
+      font-weight: 600;
+      color: var(--gold);
+    }
+
+    #total-scores-track {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .total-score-bar-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.95rem;
+    }
+
+    .total-score-bar-row .bar-bg {
+      flex: 1;
+      height: 10px;
+      background: rgba(200,148,90,0.15);
+      border-radius: 5px;
+      overflow: hidden;
+    }
+
+    .total-score-bar-row .bar-fill {
+      height: 100%;
+      border-radius: 5px;
+      transition: width 0.6s ease;
+    }
+
+    .total-score-bar-row .bar-score {
+      font-weight: 600;
+      min-width: 28px;
+      text-align: right;
+      color: var(--gold);
+    }
+
+    .round-end-actions {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+
+    #btn-next-round {
+      display: none;
+    }
+
+    #btn-next-round.visible {
+      display: inline-block;
+    }
+
+    #waiting-next-round {
+      font-style: italic;
+      color: var(--cardboard);
+      font-size: 1rem;
+    }
+
+    /* ═══════════════════════════════════════════════════
+       SCREEN — GAME OVER
+    ═══════════════════════════════════════════════════ */
+    #screen-game-over {
+      gap: 32px;
+    }
+
+    #screen-game-over h2 {
+      font-size: clamp(1.8rem, 6vw, 3rem);
+      color: var(--gold);
+      text-shadow: 0 0 20px rgba(212,175,55,0.5);
+      letter-spacing: 4px;
+      text-align: center;
+    }
+
+    #winner-display {
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .winner-crown {
+      font-size: 3.5rem;
+      line-height: 1;
+      filter: drop-shadow(0 0 12px rgba(212,175,55,0.6));
+    }
+
+    .winner-name {
+      font-family: 'Cinzel Decorative', cursive;
+      font-size: clamp(1.2rem, 4vw, 1.8rem);
+      color: var(--gold);
+      letter-spacing: 4px;
+    }
+
+    .winner-score {
+      font-size: 1.1rem;
+      color: var(--cardboard);
+      font-style: italic;
+    }
+
+    #final-leaderboard {
+      background: rgba(26,8,0,0.65);
+      border: 1px solid rgba(200,148,90,0.3);
+      border-radius: 6px;
+      padding: 24px 32px;
+      width: min(480px, 92vw);
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      box-shadow: var(--shadow-deep);
+    }
+
+    .leaderboard-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 12px 0;
+      border-bottom: 1px solid rgba(200,148,90,0.15);
+      font-size: 1.05rem;
+    }
+
+    .leaderboard-row:last-child {
+      border-bottom: none;
+    }
+
+    .leaderboard-row .rank {
+      font-family: 'Cinzel Decorative', cursive;
+      font-size: 0.8rem;
+      color: var(--cardboard);
+      width: 24px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+
+    .leaderboard-row.rank-1 .rank {
+      color: var(--gold);
+      font-size: 0.95rem;
+    }
+
+    .leaderboard-row .player-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .leaderboard-row .final-score {
+      margin-left: auto;
+      font-weight: 600;
+      color: var(--gold);
+      font-size: 1.1rem;
+    }
+
+    /* ═══════════════════════════════════════════════════
+       MUTE BUTTON
+    ═══════════════════════════════════════════════════ */
+    #btn-mute {
+      position: fixed;
+      top: 14px;
+      right: 16px;
+      width: 38px;
+      height: 38px;
+      padding: 0;
+      border-radius: 50%;
+      border: 1px solid rgba(212,175,55,0.35);
+      background: rgba(13,4,0,0.82);
+      backdrop-filter: blur(6px);
+      color: var(--card-cream);
+      font-family: 'Crimson Text', serif;
+      font-size: 1.1rem;
+      letter-spacing: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9000;
+      cursor: pointer;
+      transition: background var(--transition), box-shadow var(--transition), transform var(--transition);
+    }
+
+    #btn-mute:hover {
+      background: rgba(61,31,10,0.95);
+      box-shadow: 0 0 12px rgba(212,175,55,0.35);
+    }
+
+    /* ═══════════════════════════════════════════════════
+       SCROLL CUSTOMISATION
+    ═══════════════════════════════════════════════════ */
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: var(--tiki-groove);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--wood-light);
+      border-radius: 3px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- Mute toggle — fixed top-right, always visible -->
+  <button id="btn-mute" title="Toggle sound">🔊</button>
+
+  <!-- ═══════════════════════════════════════════════════
+       SCREEN 1 — HOME
+  ═══════════════════════════════════════════════════ -->
+  <div id="screen-home" class="screen">
+    <h1 class="game-title">TIKI TOPPLE</h1>
+    <p class="game-subtitle">The Tactical Game of Totem Domination</p>
+
+    <div class="home-card">
+      <input
+        type="text"
+        id="player-name"
+        placeholder="Enter your name..."
+        maxlength="20"
+        autocomplete="off"
+      />
+
+      <div class="home-btn-row">
+        <button id="btn-create">Create Room</button>
+        <button id="btn-join-toggle">Join Room</button>
+      </div>
+
+      <div id="join-form">
+        <input
+          type="text"
+          id="room-code-input"
+          placeholder="ROOM"
+          maxlength="4"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <button id="btn-join-confirm">Join</button>
+      </div>
+
+      <p id="home-error" class="error-msg"></p>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════
+       SCREEN 2 — LOBBY
+  ═══════════════════════════════════════════════════ -->
+  <div id="screen-lobby" class="screen">
+    <div class="room-code-display">
+      Room Code: <span id="lobby-room-code">????</span>
+      <button id="btn-copy-code">Copy</button>
+    </div>
+
+    <div class="lobby-panel">
+      <h2>Players</h2>
+      <div id="player-list">
+        <!-- player-pill elements injected here by JS -->
+      </div>
+      <p id="lobby-status">Waiting for players… (2–4 players needed)</p>
+    </div>
+
+    <button id="btn-start-game">Start Game</button>
+    <p id="lobby-error" class="error-msg"></p>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════
+       SCREEN 3 — GAME
+  ═══════════════════════════════════════════════════ -->
+  <div id="screen-game" class="screen">
+
+    <header class="game-header">
+      <div id="round-indicator">Round 1 of 4</div>
+      <div id="scores-bar">
+        <!-- score-pill elements injected here by JS -->
+      </div>
+      <div id="turn-indicator"><span id="turn-msg">Waiting…</span></div>
+    </header>
+
+    <main class="game-main">
+      <!-- Three.js injects its <canvas> into this container -->
+      <div id="threejs-board-container"></div>
+
+      <!-- HUD overlay sits above the canvas -->
+      <div id="ui-overlay">
+
+        <!-- Secret tiki card — click to flip and reveal -->
+        <div id="your-secret-card" title="Click to reveal your secret tiki">
+          <div class="secret-card-inner">
+            <div class="secret-card-back">
+              <div class="secret-card-back-icon">🗿</div>
+              <div class="secret-card-back-label">Secret<br>Tiki</div>
+            </div>
+            <div class="secret-card-face">
+              <!-- populated by UI.renderSecretCard() -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Action cards fan — populated by UI.renderActionCards() -->
+        <div id="your-action-cards"></div>
+
+        <!-- Rules help button, bottom-right -->
+        <button id="btn-rules-help" title="Show scoring rules">?</button>
+
+        <!-- Rules tooltip -->
+        <div id="rules-tooltip">
+          <div class="tooltip-header">
+            <h3>Quick Rules</h3>
+            <button class="tooltip-close" id="btn-rules-close">✕</button>
+          </div>
+          <div class="tooltip-section">
+            <div class="tooltip-section-title">Scoring (secret tiki)</div>
+            <div class="tooltip-row"><span>Top — position 1</span><span class="tip-pts">+9 pts</span></div>
+            <div class="tooltip-row"><span>Middle — pos 1 or 2</span><span class="tip-pts">+5 pts</span></div>
+            <div class="tooltip-row"><span>Bottom — pos 1–3</span><span class="tip-pts">+2 pts</span></div>
+            <div class="tooltip-row"><span>Toasted</span><span class="tip-pts">0 pts</span></div>
+          </div>
+          <div class="tooltip-section">
+            <div class="tooltip-section-title">Cards</div>
+            <div class="tooltip-row">⬆ Tiki Up 1/2/3 — move forward N spots</div>
+            <div class="tooltip-row">⬇ Tiki Topple — send to the back</div>
+            <div class="tooltip-row">🔥 Tiki Toast — remove last tiki (not 1st card)</div>
+          </div>
+        </div>
+
+      </div><!-- #ui-overlay -->
+    </main>
+
+  </div><!-- #screen-game -->
+
+
+  <!-- ═══════════════════════════════════════════════════
+       SCREEN 4 — ROUND END
+  ═══════════════════════════════════════════════════ -->
+  <div id="screen-round-end" class="screen">
+    <h2 id="round-end-heading">Round 1 Complete!</h2>
+
+    <div class="round-end-panel">
+      <h3>Secret Cards Revealed</h3>
+      <div id="all-secret-cards-reveal">
+        <!-- secret-card-reveal elements injected by JS -->
+      </div>
+    </div>
+
+    <div class="round-end-panel">
+      <h3>Round Scores</h3>
+      <div id="round-scores-breakdown">
+        <!-- score-row elements injected by JS -->
+      </div>
+    </div>
+
+    <div class="round-end-panel">
+      <h3>Total Scores</h3>
+      <div id="total-scores-track">
+        <!-- total-score-bar-row elements injected by JS -->
+      </div>
+    </div>
+
+    <div class="round-end-actions">
+      <button id="btn-next-round">Next Round</button>
+      <p id="waiting-next-round">Waiting for host to start next round…</p>
+    </div>
+
+    <p id="round-end-error" class="error-msg"></p>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════
+       SCREEN 5 — GAME OVER
+  ═══════════════════════════════════════════════════ -->
+  <div id="screen-game-over" class="screen">
+    <h2>Game Over!</h2>
+
+    <div id="winner-display">
+      <span class="winner-crown">♛</span>
+      <span class="winner-name" id="winner-name-text">—</span>
+      <span class="winner-score" id="winner-score-text"></span>
+    </div>
+
+    <div id="final-leaderboard">
+      <!-- leaderboard-row elements injected by JS -->
+    </div>
+
+    <button id="btn-play-again">Play Again</button>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════
+       SCRIPTS
+  ═══════════════════════════════════════════════════ -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script>
+    /* ─── Screen router ────────────────────────────────────────────────────── */
+
+    /**
+     * Hides every screen, then activates the one with the given id.
+     * @param {string} id  e.g. 'screen-home', 'screen-lobby', 'screen-game', etc.
+     */
+    function showScreen(id) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      const target = document.getElementById(id);
+      if (target) target.classList.add('active');
+    }
+
+    /* ─── Join-form toggle ─────────────────────────────────────────────────── */
+
+    document.getElementById('btn-join-toggle').addEventListener('click', () => {
+      const form = document.getElementById('join-form');
+      form.classList.toggle('visible');
+    });
+
+    /* ─── Rules tooltip toggle ─────────────────────────────────────────────── */
+
+    document.getElementById('btn-rules-help').addEventListener('click', () => {
+      document.getElementById('rules-tooltip').classList.toggle('visible');
+    });
+
+    // Close tooltip when clicking outside
+    document.addEventListener('click', (e) => {
+      const tooltip = document.getElementById('rules-tooltip');
+      const btn     = document.getElementById('btn-rules-help');
+      if (!tooltip.contains(e.target) && e.target !== btn) {
+        tooltip.classList.remove('visible');
+      }
+    });
+
+    /* ─── Room code input — force uppercase ────────────────────────────────── */
+
+    document.getElementById('room-code-input').addEventListener('input', function () {
+      this.value = this.value.toUpperCase().replace(/[^A-Z]/g, '');
+    });
+
+    /* ─── Copy room code ───────────────────────────────────────────────────── */
+
+    document.getElementById('btn-copy-code').addEventListener('click', () => {
+      const code = document.getElementById('lobby-room-code').textContent;
+      navigator.clipboard.writeText(code).then(() => {
+        const btn = document.getElementById('btn-copy-code');
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = 'Copy'; }, 1800);
+      });
+    });
+
+    /* ─── Start on home screen ─────────────────────────────────────────────── */
+
+    document.addEventListener('DOMContentLoaded', () => showScreen('screen-home'));
+  </script>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       THREE.JS 3D BOARD ENGINE
+       Exposes to window: initBoard · updateBoard · toastTiki
+                          highlightValidTargets · clearHighlights · onTikiClicked
+  ════════════════════════════════════════════════════════════════════════ -->
+  <script>
+  (function () {
+    'use strict';
+
+    // ── Constants ────────────────────────────────────────────────────────────
+
+    const TIKI_REST_Y  = 0.4;               // world Y while sitting on groove
+    const TIKI_RISE_Y  = TIKI_REST_Y + 2.5; // world Y at apex of arc move
+    const TIKI_HOVER_Y = TIKI_REST_Y + 0.3; // world Y while mouse-hovered
+    const Z_FAR        = -7;                // world Z of position 1 (far end)
+    const SLOT_SPACING = 1.75;              // Z distance between adjacent slots
+    const NUM_SLOTS    = 9;
+    const ORBIT_RADIUS = 18;
+    const ORBIT_HEIGHT = 8;
+    const ORBIT_SPEED  = 0.0003;            // radians per frame
+
+    function slotZ(index) { return Z_FAR + index * SLOT_SPACING; }
+
+    // ── Scene state ──────────────────────────────────────────────────────────
+
+    let renderer, scene, camera, clock;
+    const torchFlames   = [];  // THREE.Mesh flame objects for flicker
+    let   tikisInScene  = [];  // { tikId, group, bodyMesh, color, isAnimating }
+    let   bodyMeshes    = [];  // { mesh, tikId } — raycasting targets
+    const animations    = [];  // active { start, duration, update, onComplete }
+    let   hoveredTikId  = null;
+    let   validTargetIds = [];
+    let   tikiClickCb   = null;
+    let   isInteracting = false;   // pauses camera orbit
+    let   cameraAngle   = 0;
+    let   touchStartX   = 0;
+    let   touchAngle0   = 0;
+    let   renderLoopActive = false;  // prevents duplicate rAF loops
+
+    // ── Easing ───────────────────────────────────────────────────────────────
+
+    const easeOutCubic   = t => 1 - Math.pow(1 - t, 3);
+    const easeInCubic    = t => t * t * t;
+    const easeInOutCubic = t => t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2, 3)/2;
+
+    // ── Animation queue ──────────────────────────────────────────────────────
+
+    function queueAnim({ duration, update, onComplete }) {
+      animations.push({ start: performance.now(), duration, update, onComplete });
+    }
+
+    function tickAnimations() {
+      const now = performance.now();
+      for (let i = animations.length - 1; i >= 0; i--) {
+        const a = animations[i];
+        const t = Math.min(1, (now - a.start) / a.duration);
+        a.update(t);
+        if (t >= 1) {
+          if (a.onComplete) a.onComplete();
+          animations.splice(i, 1);
+        }
+      }
+    }
+
+    // ── Color helpers ────────────────────────────────────────────────────────
+
+    function lightenColor(hex, amt = 0.18) {
+      const c = new THREE.Color(hex);
+      return new THREE.Color(
+        Math.min(1, c.r + amt),
+        Math.min(1, c.g + amt),
+        Math.min(1, c.b + amt)
+      );
+    }
+
+    // ── Number sprite (canvas texture) ───────────────────────────────────────
+
+    function makeNumberSprite(n) {
+      const S = 128;
+      const cv = document.createElement('canvas');
+      cv.width = cv.height = S;
+      const ctx = cv.getContext('2d');
+
+      // Warm wood-chip circle
+      const grad = ctx.createRadialGradient(S/2, S/2, 0, S/2, S/2, S/2 - 4);
+      grad.addColorStop(0, 'rgba(200,148,90,0.95)');
+      grad.addColorStop(1, 'rgba(107,58,31,0.85)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(S/2, S/2, S/2 - 4, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = 'rgba(26,8,0,0.6)';
+      ctx.lineWidth = 5;
+      ctx.stroke();
+
+      ctx.font = `900 ${S * 0.48}px serif`;
+      ctx.fillStyle = '#1a0800';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(String(n), S/2, S/2 + 2);
+
+      const mat  = new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), transparent: true });
+      const spr  = new THREE.Sprite(mat);
+      spr.scale.set(0.65, 0.65, 1);
+      return spr;
+    }
+
+    // ── Tiki group factory ───────────────────────────────────────────────────
+    //
+    //  All child positions are in GROUP space.
+    //  Cylinder center: y = 0   → bottom at y = -0.6, top at y = 0.6
+    //  The group is later placed at world y = TIKI_REST_Y (0.4).
+
+    function createTikiGroup(tikId, hexColor) {
+      const group = new THREE.Group();
+      group.userData.tikId = tikId;
+
+      const bodyColor = new THREE.Color(hexColor);
+      const faceColor = lightenColor(hexColor);
+
+      // ── Body cylinder ──
+      const bodyMat = new THREE.MeshLambertMaterial({
+        color:    bodyColor.clone(),
+        emissive: new THREE.Color(0x000000),
+      });
+      const bodyMesh = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.35, 0.42, 1.2, 8),
+        bodyMat
+      );
+      group.add(bodyMesh);
+      group.userData.bodyMesh = bodyMesh;
+
+      // ── Face plate ──
+      // Sits proud of the cylinder front (faces +Z)
+      const facePlate = new THREE.Mesh(
+        new THREE.BoxGeometry(0.72, 0.9, 0.08),
+        new THREE.MeshLambertMaterial({ color: faceColor })
+      );
+      facePlate.position.set(0, 0.08, 0.41);
+      group.add(facePlate);
+
+      // ── Eyes + pupils ──
+      const eyeMat   = new THREE.MeshLambertMaterial({ color: 0xffffff });
+      const pupilMat = new THREE.MeshLambertMaterial({ color: 0x111111 });
+      [-0.17, 0.17].forEach(xOff => {
+        const eye = new THREE.Mesh(new THREE.SphereGeometry(0.10, 6, 6), eyeMat.clone());
+        eye.position.set(xOff, 0.22, 0.47);
+        group.add(eye);
+
+        const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.05, 5, 5), pupilMat.clone());
+        pupil.position.set(xOff, 0.22, 0.53);
+        group.add(pupil);
+      });
+
+      // ── Nose ──
+      const nose = new THREE.Mesh(
+        new THREE.BoxGeometry(0.15, 0.10, 0.10),
+        new THREE.MeshLambertMaterial({ color: faceColor })
+      );
+      nose.position.set(0, 0.05, 0.47);
+      group.add(nose);
+
+      // ── Mouth ──
+      const mouth = new THREE.Mesh(
+        new THREE.BoxGeometry(0.30, 0.08, 0.09),
+        new THREE.MeshLambertMaterial({ color: 0x1a0800 })
+      );
+      mouth.position.set(0, -0.12, 0.47);
+      group.add(mouth);
+
+      // ── Gold crown torus — laid flat on top ──
+      const crown = new THREE.Mesh(
+        new THREE.TorusGeometry(0.30, 0.052, 8, 16),
+        new THREE.MeshLambertMaterial({ color: 0xd4af37, emissive: new THREE.Color(0x8b6914), emissiveIntensity: 0.3 })
+      );
+      crown.rotation.x = Math.PI / 2;
+      crown.position.y = 0.68;
+      group.add(crown);
+
+      return group;
+    }
+
+    // ── Lighting ─────────────────────────────────────────────────────────────
+
+    function buildLighting() {
+      // Warm dark fill
+      scene.add(new THREE.AmbientLight(0x3d1f0a, 0.6));
+
+      // Key light — warm diagonal
+      const dir = new THREE.DirectionalLight(0xffd4a0, 1.2);
+      dir.position.set(5, 10, 5);
+      scene.add(dir);
+
+      // Torch point lights — orange glow from the sides
+      const torchL = new THREE.PointLight(0xff6b1a, 2.0, 22);
+      torchL.position.set(-6, 3, 2);
+      scene.add(torchL);
+
+      const torchR = new THREE.PointLight(0xff6b1a, 2.0, 22);
+      torchR.position.set(6, 3, 2);
+      scene.add(torchR);
+
+      // Top spotlight — cool white pool
+      const spot = new THREE.SpotLight(0xffffff, 0.8);
+      spot.position.set(0, 15, 0);
+      spot.angle    = Math.PI / 5;
+      spot.penumbra = 0.35;
+      scene.add(spot);
+      scene.add(spot.target);   // target remains at (0,0,0)
+    }
+
+    // ── Board geometry ────────────────────────────────────────────────────────
+
+    function buildBoard() {
+      // ── Main plank ──
+      const plankMat = new THREE.MeshLambertMaterial({ color: 0x3d1f0a });
+      const plank    = new THREE.Mesh(new THREE.BoxGeometry(4, 0.3, 18), plankMat);
+      scene.add(plank);
+
+      // Subtle wood grain bands (thin dark strips across the grain)
+      for (let i = 0; i < 5; i++) {
+        const strip = new THREE.Mesh(
+          new THREE.BoxGeometry(4, 0.01, 0.06),
+          new THREE.MeshLambertMaterial({ color: 0x1a0800 })
+        );
+        strip.position.set(0, 0.155, -6 + i * 3);
+        scene.add(strip);
+      }
+
+      // ── Carved tiki channel ──
+      const groove = new THREE.Mesh(
+        new THREE.BoxGeometry(1.2, 0.4, 17),
+        new THREE.MeshLambertMaterial({ color: 0x0d0400 })
+      );
+      groove.position.set(0, 0.18, 0);
+      scene.add(groove);
+
+      // Channel inner shadow line
+      const channelEdge = new THREE.Mesh(
+        new THREE.BoxGeometry(1.24, 0.02, 17.1),
+        new THREE.MeshLambertMaterial({ color: 0x1a0800 })
+      );
+      channelEdge.position.set(0, 0.385, 0);
+      scene.add(channelEdge);
+
+      // ── Side rails (bevelled edges) ──
+      [-1.7, 1.7].forEach(xOff => {
+        const rail = new THREE.Mesh(
+          new THREE.BoxGeometry(0.14, 0.22, 17.6),
+          new THREE.MeshLambertMaterial({ color: 0x6b3a1f })
+        );
+        rail.position.set(xOff, 0.11, 0);
+        scene.add(rail);
+
+        // Gold trim strip
+        const trim = new THREE.Mesh(
+          new THREE.BoxGeometry(0.06, 0.03, 17.6),
+          new THREE.MeshLambertMaterial({ color: 0xd4af37, emissive: new THREE.Color(0x4a3800), emissiveIntensity: 0.4 })
+        );
+        trim.position.set(xOff, 0.225, 0);
+        scene.add(trim);
+      });
+
+      // ── Position number sprites ──
+      for (let i = 0; i < NUM_SLOTS; i++) {
+        const spr = makeNumberSprite(i + 1);
+        spr.position.set(-2.6, 0.82, slotZ(i));
+        scene.add(spr);
+      }
+
+      // ── Torch posts ──
+      const postMat = new THREE.MeshLambertMaterial({ color: 0x2a1005 });
+      [{ x: -3 }, { x: 3 }].forEach(({ x }) => {
+        // Post shaft
+        const post = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.14, 0.18, 6, 8),
+          postMat
+        );
+        post.position.set(x, 3, -7);   // center y=3 → base at y=0, top at y=6
+        scene.add(post);
+
+        // Gold torch cup
+        const cup = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.24, 0.14, 0.28, 8),
+          new THREE.MeshLambertMaterial({
+            color:    0xd4af37,
+            emissive: new THREE.Color(0x4a3800),
+            emissiveIntensity: 0.5,
+          })
+        );
+        cup.position.set(x, 6.14, -7);
+        scene.add(cup);
+
+        // Flame mesh (elongated sphere for teardrop silhouette)
+        const flameMat = new THREE.MeshLambertMaterial({
+          color:            0xff8c00,
+          emissive:         new THREE.Color(0xff3300),
+          emissiveIntensity: 1.0,
+        });
+        const flame = new THREE.Mesh(new THREE.SphereGeometry(0.30, 8, 8), flameMat);
+        flame.position.set(x, 6.60, -7);
+        flame.scale.set(0.65, 1.5, 0.65);
+        scene.add(flame);
+        torchFlames.push(flame);
+
+        // Inner brighter flame core
+        const core = new THREE.Mesh(
+          new THREE.SphereGeometry(0.15, 6, 6),
+          new THREE.MeshLambertMaterial({
+            color:            0xffff80,
+            emissive:         new THREE.Color(0xffee00),
+            emissiveIntensity: 1.0,
+          })
+        );
+        core.position.set(x, 6.45, -7);
+        core.scale.set(0.5, 1.0, 0.5);
+        scene.add(core);
+        torchFlames.push(core);
+      });
+    }
+
+    // ── Scene initialisation ──────────────────────────────────────────────────
+
+    function initThreeScene() {
+      const container = document.getElementById('threejs-board-container');
+
+      // Use the container's actual dimensions; if still 0 (layout not ready)
+      // fall back to the window size so the scene at least renders correctly.
+      const W = container.clientWidth  || window.innerWidth;
+      const H = container.clientHeight || (window.innerHeight - 50); // subtract header
+
+      // Renderer
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.setSize(W, H);
+      renderer.setClearColor(0x000000, 0);
+      container.appendChild(renderer.domElement);
+
+      // Immediately correct size in the next frame once layout is committed
+      requestAnimationFrame(() => {
+        if (renderer) {
+          const W2 = container.clientWidth  || window.innerWidth;
+          const H2 = container.clientHeight || (window.innerHeight - 50);
+          if (W2 !== W || H2 !== H) {
+            renderer.setSize(W2, H2);
+            camera.aspect = W2 / H2;
+            camera.updateProjectionMatrix();
+          }
+        }
+      });
+
+      // Scene
+      scene = new THREE.Scene();
+
+      // Camera
+      camera = new THREE.PerspectiveCamera(45, W / H, 0.1, 120);
+      camera.position.set(0, ORBIT_HEIGHT, ORBIT_RADIUS);
+      camera.lookAt(0, 0, 0);
+
+      // Clock
+      clock = new THREE.Clock();
+
+      buildLighting();
+      buildBoard();
+
+      // Events
+      renderer.domElement.addEventListener('mousemove',  onMouseMove);
+      renderer.domElement.addEventListener('click',      onCanvasClick);
+      renderer.domElement.addEventListener('mouseenter', () => { isInteracting = true;  });
+      renderer.domElement.addEventListener('mouseleave', () => {
+        isInteracting = false;
+        mouse.set(-9999, -9999);
+        resetHover();
+      });
+      renderer.domElement.addEventListener('touchstart', onTouchStart, { passive: false });
+      renderer.domElement.addEventListener('touchmove',  onTouchMove,  { passive: false });
+      renderer.domElement.addEventListener('touchend',   () => { isInteracting = false; });
+      window.addEventListener('resize', onResize);
+
+      if (!renderLoopActive) {
+        renderLoopActive = true;
+        requestAnimationFrame(renderLoop);
+      }
+    }
+
+    // ── Render loop ───────────────────────────────────────────────────────────
+
+    const raycaster = new THREE.Raycaster();
+    const mouse     = new THREE.Vector2(-9999, -9999);
+
+    function renderLoop() {
+      if (!renderLoopActive) return;
+      requestAnimationFrame(renderLoop);
+      const t = clock.getElapsedTime();
+
+      tickAnimations();
+
+      // ── Idle bob (skip when animating or hovered) ──
+      tikisInScene.forEach((td, i) => {
+        if (!td.isAnimating && hoveredTikId !== td.tikId) {
+          td.group.position.y = TIKI_REST_Y + Math.sin(t * 1.5 + i * 0.5) * 0.04;
+        }
+      });
+
+      // ── Torch flame flicker ──
+      torchFlames.forEach((flame, i) => {
+        const ft = t * 3.8 + i * 1.9;
+        flame.scale.set(
+          (i % 2 === 0 ? 0.65 : 0.33) * (1 + Math.sin(ft * 1.7) * 0.10),
+          (i % 2 === 0 ? 1.50 : 1.00) * (1 + Math.sin(ft)       * 0.20 + Math.sin(ft * 2.3) * 0.08),
+          (i % 2 === 0 ? 0.65 : 0.33) * (1 + Math.sin(ft * 2.1) * 0.07)
+        );
+        flame.material.emissiveIntensity =
+          (i % 2 === 0 ? 1.0 : 1.0) * (0.75 + Math.sin(ft * 2.0) * 0.22 + Math.sin(ft * 3.7) * 0.10);
+      });
+
+      // ── Highlight pulse ──
+      if (validTargetIds.length > 0) {
+        tikisInScene.forEach(td => {
+          if (validTargetIds.includes(td.tikId)) {
+            const pulse = (Math.sin(t * 4.5) + 1) * 0.25;  // 0 → 0.5
+            td.bodyMesh.material.emissive.copy(td.color).multiplyScalar(pulse);
+          } else {
+            td.bodyMesh.material.emissive.set(0x000000);
+          }
+        });
+      }
+
+      // ── Hover raycast (only when interactive) ──
+      if (validTargetIds.length > 0 && bodyMeshes.length > 0) {
+        raycaster.setFromCamera(mouse, camera);
+        const hits  = raycaster.intersectObjects(bodyMeshes.map(b => b.mesh));
+        const found = hits.length > 0 ? bodyMeshes.find(b => b.mesh === hits[0].object) : null;
+
+        if (found && validTargetIds.includes(found.tikId)) {
+          if (hoveredTikId !== found.tikId) {
+            resetHover();
+            hoveredTikId = found.tikId;
+          }
+          const td = tikisInScene.find(t => t.tikId === hoveredTikId);
+          if (td && !td.isAnimating) td.group.position.y = TIKI_HOVER_Y;
+          renderer.domElement.style.cursor = 'pointer';
+        } else {
+          resetHover();
+        }
+      }
+
+      // ── Camera slow orbit ──
+      if (!isInteracting) {
+        cameraAngle += ORBIT_SPEED;
+        camera.position.x = Math.sin(cameraAngle) * ORBIT_RADIUS;
+        camera.position.z = Math.cos(cameraAngle) * ORBIT_RADIUS;
+        camera.position.y = ORBIT_HEIGHT;
+        camera.lookAt(0, 0, 0);
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    function resetHover() {
+      if (hoveredTikId) {
+        const td = tikisInScene.find(t => t.tikId === hoveredTikId);
+        if (td && !td.isAnimating) td.group.position.y = TIKI_REST_Y;
+        hoveredTikId = null;
+      }
+      if (renderer) renderer.domElement.style.cursor = 'default';
+    }
+
+    // ── Input handlers ───────────────────────────────────────────────────────
+
+    function onMouseMove(e) {
+      const r = renderer.domElement.getBoundingClientRect();
+      mouse.x =  ((e.clientX - r.left) / r.width)  * 2 - 1;
+      mouse.y = -((e.clientY - r.top)  / r.height) * 2 + 1;
+    }
+
+    function onCanvasClick(e) {
+      if (!tikiClickCb || validTargetIds.length === 0) return;
+      const r  = renderer.domElement.getBoundingClientRect();
+      const mx =  ((e.clientX - r.left) / r.width)  * 2 - 1;
+      const my = -((e.clientY - r.top)  / r.height) * 2 + 1;
+      raycaster.setFromCamera(new THREE.Vector2(mx, my), camera);
+      const hits  = raycaster.intersectObjects(bodyMeshes.map(b => b.mesh));
+      const found = hits.length > 0 ? bodyMeshes.find(b => b.mesh === hits[0].object) : null;
+      if (found && validTargetIds.includes(found.tikId)) tikiClickCb(found.tikId);
+    }
+
+    function onTouchStart(e) {
+      e.preventDefault();
+      isInteracting = true;
+      touchStartX   = e.touches[0].clientX;
+      touchAngle0   = cameraAngle;
+    }
+
+    function onTouchMove(e) {
+      e.preventDefault();
+      cameraAngle = touchAngle0 - (e.touches[0].clientX - touchStartX) * 0.005;
+      camera.position.x = Math.sin(cameraAngle) * ORBIT_RADIUS;
+      camera.position.z = Math.cos(cameraAngle) * ORBIT_RADIUS;
+      camera.lookAt(0, 0, 0);
+    }
+
+    let _resizeTimer = null;
+    function onResize() {
+      clearTimeout(_resizeTimer);
+      _resizeTimer = setTimeout(() => {
+        if (!renderer) return;
+        const c = document.getElementById('threejs-board-container');
+        if (!c) return;
+        const W = c.clientWidth, H = c.clientHeight;
+        if (!W || !H) return;
+        renderer.setSize(W, H);
+        camera.aspect = W / H;
+        camera.updateProjectionMatrix();
+      }, 150);
+    }
+
+    // ── Animations ────────────────────────────────────────────────────────────
+
+    // Three-phase arc: rise → travel → land
+    function animateTikiMove(td, fromZ, toZ) {
+      td.isAnimating = true;
+      queueAnim({
+        duration: 600,
+        update(t) {
+          if (t < 1/3) {
+            const p = easeOutCubic(t * 3);
+            td.group.position.y = TIKI_REST_Y + (TIKI_RISE_Y - TIKI_REST_Y) * p;
+            td.group.position.z = fromZ;
+            td.group.rotation.y = Math.sin(t * Math.PI * 9) * 0.3;
+          } else if (t < 2/3) {
+            const p = easeInOutCubic((t - 1/3) * 3);
+            td.group.position.y = TIKI_RISE_Y;
+            td.group.position.z = fromZ + (toZ - fromZ) * p;
+            td.group.rotation.y = Math.sin(t * Math.PI * 5) * 0.18;
+          } else {
+            const p = easeInCubic((t - 2/3) * 3);
+            td.group.position.y = TIKI_RISE_Y + (TIKI_REST_Y - TIKI_RISE_Y) * p;
+            td.group.position.z = toZ;
+            td.group.rotation.y = Math.sin(t * Math.PI * 3) * 0.12 * (1 - (t - 2/3) * 3);
+          }
+        },
+        onComplete() {
+          td.group.position.set(0, TIKI_REST_Y, toZ);
+          td.group.rotation.y = 0;
+          td.isAnimating = false;
+        },
+      });
+    }
+
+    // Scale-up + spin-dissolve
+    function animateToast(td, onDone) {
+      td.isAnimating = true;
+      const startY = td.group.position.y;
+      queueAnim({
+        duration: 520,
+        update(t) {
+          if (t < 0.28) {
+            const p = easeOutCubic(t / 0.28);
+            td.group.scale.setScalar(1 + 0.3 * p);
+          } else {
+            const p = easeInCubic((t - 0.28) / 0.72);
+            td.group.scale.setScalar(Math.max(0.001, 1.3 * (1 - p)));
+            td.group.rotation.y = p * Math.PI * 5;
+            td.group.position.y = startY + p * 1.8;
+          }
+        },
+        onComplete() {
+          td.group.visible = false;
+          td.isAnimating   = false;
+          if (onDone) onDone();
+        },
+      });
+      spawnParticleBurst(td.group.position.clone());
+    }
+
+    function spawnParticleBurst(origin) {
+      const COUNT     = 12;
+      const particles = [];
+      for (let i = 0; i < COUNT; i++) {
+        const m = new THREE.Mesh(
+          new THREE.SphereGeometry(0.08, 4, 4),
+          new THREE.MeshBasicMaterial({ color: 0xff6b1a, transparent: true, opacity: 1 })
+        );
+        m.position.copy(origin);
+        scene.add(m);
+        const ang = (i / COUNT) * Math.PI * 2;
+        const spd = 3 + Math.random() * 2.5;
+        particles.push({
+          m,
+          vx: Math.cos(ang) * spd,
+          vy: 3 + Math.random() * 2,
+          vz: Math.sin(ang) * spd,
+        });
+      }
+      queueAnim({
+        duration: 900,
+        update(t) {
+          const s = t * 0.9;
+          particles.forEach(p => {
+            p.m.position.x = origin.x + p.vx * s;
+            p.m.position.y = origin.y + p.vy * s - 5.5 * s * s;
+            p.m.position.z = origin.z + p.vz * s;
+            p.m.material.opacity = Math.max(0, 1 - t * 1.5);
+          });
+        },
+        onComplete() {
+          particles.forEach(p => { scene.remove(p.m); p.m.geometry.dispose(); p.m.material.dispose(); });
+        },
+      });
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // PUBLIC API
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Set up scene and place all 9 tikis at their starting positions.
+     * @param {Array<{id, name, color, position}>} tikis  position is 1-indexed
+     */
+    function disposeGroup(group) {
+      group.traverse(obj => {
+        if (obj.geometry) obj.geometry.dispose();
+        if (obj.material) {
+          if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
+          else obj.material.dispose();
+        }
+      });
+    }
+
+    window.initBoard = function (tikis) {
+      if (!renderer) initThreeScene();
+
+      // Clear previous tikis and release GPU resources
+      tikisInScene.forEach(td => {
+        scene.remove(td.group);
+        disposeGroup(td.group);
+      });
+      tikisInScene = [];
+      bodyMeshes   = [];
+      animations.length = 0;   // cancel any in-flight animations from previous round
+
+      [...tikis]
+        .sort((a, b) => (a.position || 1) - (b.position || 1))
+        .forEach((tiki, i) => {
+          const group = createTikiGroup(tiki.id, tiki.color);
+          group.position.set(0, TIKI_REST_Y, slotZ(i));
+          scene.add(group);
+
+          const td = {
+            tikId:       tiki.id,
+            group,
+            bodyMesh:    group.userData.bodyMesh,
+            color:       new THREE.Color(tiki.color),
+            boardIndex:  i,
+            isAnimating: false,
+          };
+          tikisInScene.push(td);
+          bodyMeshes.push({ mesh: group.userData.bodyMesh, tikId: tiki.id });
+        });
+    };
+
+    /**
+     * Animate tikis to their new positions in boardState.
+     * @param {Array<{id}|string>} boardState  index 0 = position 1 (top)
+     */
+    window.updateBoard = function (boardState) {
+      boardState.forEach((item, newIndex) => {
+        const tikId = typeof item === 'string' ? item : item.id;
+        const td    = tikisInScene.find(t => t.tikId === tikId);
+        if (!td) return;
+        const newZ = slotZ(newIndex);
+        if (Math.abs(td.group.position.z - newZ) > 0.02) {
+          td.boardIndex = newIndex;
+          animateTikiMove(td, td.group.position.z, newZ);
+        }
+      });
+    };
+
+    /**
+     * Play toast removal animation then remove from scene.
+     * @param {string} tikId
+     * @param {function} [onDone]
+     */
+    window.toastTiki = function (tikId, onDone) {
+      const td = tikisInScene.find(t => t.tikId === tikId);
+      if (!td) return;
+      animateToast(td, () => {
+        scene.remove(td.group);
+        tikisInScene = tikisInScene.filter(t => t.tikId !== tikId);
+        bodyMeshes   = bodyMeshes.filter(b => b.tikId   !== tikId);
+        if (onDone) onDone();
+      });
+    };
+
+    /**
+     * Enable pulsing emissive glow on tiki bodies for selectable tikis.
+     * @param {string[]} tikIds
+     */
+    window.highlightValidTargets = function (tikIds) {
+      validTargetIds = tikIds;
+      tikisInScene.forEach(td => {
+        if (!tikIds.includes(td.tikId)) td.bodyMesh.material.emissive.set(0x000000);
+      });
+    };
+
+    /** Remove all highlights. */
+    window.clearHighlights = function () {
+      validTargetIds = [];
+      resetHover();
+      tikisInScene.forEach(td => td.bodyMesh.material.emissive.set(0x000000));
+    };
+
+    /**
+     * Register click handler. Callback receives the tiki id string.
+     * @param {function} cb
+     */
+    window.onTikiClicked = function (cb) { tikiClickCb = cb; };
+
+  })();
+  </script>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       2D UI STATE MACHINE
+       Exposes to window: UI.setTurnState · UI.renderScorePills
+                          UI.renderSecretCard · UI.renderActionCards
+                          UI.setRoundIndicator · UI.setBoardState
+                          UI.onCardTarget · UI.onCardSelect · UI.markCardPlayed · UI.reset
+  ════════════════════════════════════════════════════════════════════════ -->
+  <script>
+  (function () {
+    'use strict';
+
+    // ── Tiki data (mirrors server TIKIS) ─────────────────────────────────────
+    const TIKIS = {
+      hookipa: { name: 'Hookipa', color: '#8a8a8a', symbol: 'Starfish'  },
+      lani:    { name: 'Lani',    color: '#7b2fbe', symbol: 'Starfish'  },
+      kai:     { name: 'Kai',     color: '#c0392b', symbol: 'Starfish'  },
+      malu:    { name: 'Malu',    color: '#e91e8c', symbol: 'Shells'    },
+      nalu:    { name: 'Nalu',    color: '#f39c12', symbol: 'Shells'    },
+      pele:    { name: 'Pele',    color: '#e67e22', symbol: 'Shells'    },
+      honu:    { name: 'Honu',    color: '#27ae60', symbol: 'Fishbones' },
+      mana:    { name: 'Mana',    color: '#2980b9', symbol: 'Fishbones' },
+      koa:     { name: 'Koa',     color: '#795548', symbol: 'Fishbones' },
+    };
+
+    const CARD_ICONS = { up1: '⬆', up2: '⬆⬆', up3: '▲▲▲', topple: '⬇', toast: '🔥' };
+    const CARD_LABELS = { up1: 'Tiki Up 1', up2: 'Tiki Up 2', up3: 'Tiki Up 3', topple: 'Topple', toast: 'Toast' };
+    const CARD_DESCS  = {
+      up1: 'Move a tiki 1 spot forward',
+      up2: 'Move a tiki 2 spots forward',
+      up3: 'Move a tiki 3 spots forward',
+      topple: 'Send a tiki to the back',
+      toast:  'Remove the last tiki',
+    };
+
+    // ── Module state ──────────────────────────────────────────────────────────
+    let uiState        = 'not_your_turn'; // idle | card_selected | waiting_for_server | not_your_turn
+    let selectedCardId   = null;
+    let selectedCardType = null;
+    let myCards          = [];
+    let playedCardIds    = [];
+    let boardState       = [];
+    let onCardTargetCb   = null;
+    let onCardSelectCb   = null;
+
+    // ── Turn state machine ────────────────────────────────────────────────────
+    function setTurnState(newState, opts) {
+      uiState = newState;
+      opts    = opts || {};
+
+      const indicator = document.getElementById('turn-indicator');
+      const msg       = document.getElementById('turn-msg');
+      if (!indicator || !msg) return;
+
+      indicator.className = '';
+      if (newState === 'idle') {
+        indicator.classList.add('your-turn');
+        msg.textContent = 'Your Turn — Pick a Card';
+      } else if (newState === 'card_selected') {
+        indicator.classList.add('card-selected');
+        msg.textContent = 'Pick a Target Tiki';
+      } else if (newState === 'waiting_for_server') {
+        msg.textContent = 'Playing…';
+      } else {
+        msg.textContent = opts.playerName ? opts.playerName + "'s Turn" : 'Waiting…';
+      }
+
+      refreshCardStates();
+    }
+
+    // ── Score pills ───────────────────────────────────────────────────────────
+    function renderScorePills(players, activePlayerId) {
+      const bar = document.getElementById('scores-bar');
+      if (!bar) return;
+
+      const existing = {};
+      bar.querySelectorAll('.score-pill[data-player-id]').forEach(el => {
+        existing[el.dataset.playerId] = el;
+      });
+
+      if (Object.keys(existing).length === 0) {
+        bar.innerHTML = '';
+        players.forEach(p => bar.appendChild(makePill(p, p.id === activePlayerId)));
+      } else {
+        players.forEach(p => {
+          if (existing[p.id]) {
+            const scoreEl = existing[p.id].querySelector('.score-val');
+            const oldVal  = parseInt(scoreEl.textContent, 10) || 0;
+            if (oldVal !== (p.totalScore || 0)) animateCount(scoreEl, oldVal, p.totalScore || 0);
+            existing[p.id].classList.toggle('active-turn', p.id === activePlayerId);
+            existing[p.id].querySelector('.score-val').style.color = p.id === activePlayerId ? 'var(--gold)' : '';
+          } else {
+            bar.appendChild(makePill(p, p.id === activePlayerId));
+          }
+        });
+      }
+    }
+
+    function makePill(p, isActive) {
+      const pill = document.createElement('div');
+      pill.className = 'score-pill' + (isActive ? ' active-turn' : '');
+      pill.dataset.playerId = p.id;
+      pill.innerHTML =
+        '<span class="dot" style="background:' + p.color + ';color:' + p.color + '"></span>' +
+        '<span class="player-name-short">' + (p.name || '').substring(0, 8) + '</span>' +
+        '<span class="score-val">' + (p.totalScore || 0) + '</span>';
+      return pill;
+    }
+
+    function animateCount(el, from, to) {
+      const dur   = 550;
+      const start = performance.now();
+      const diff  = to - from;
+      let   lastInt = from;
+      (function tick(now) {
+        const t    = Math.min(1, (now - start) / dur);
+        const ease = 1 - Math.pow(1 - t, 3);
+        const cur  = Math.round(from + diff * ease);
+        if (cur !== lastInt) {
+          SoundEngine.play('score_tick');
+          lastInt = cur;
+        }
+        el.textContent = cur;
+        if (t < 1) requestAnimationFrame(tick);
+      })(performance.now());
+    }
+
+    // ── Secret card ───────────────────────────────────────────────────────────
+    // secretCard shape from server: { top: tikId, middle: tikId, bottom: tikId }
+    function renderSecretCard(secretCard, revealed) {
+      const container = document.getElementById('your-secret-card');
+      if (!container) return;
+
+      if (!secretCard) { container.style.display = 'none'; return; }
+      container.style.display = '';
+
+      const roles = [
+        { key: 'top',    label: 'Top',    pts: '+9' },
+        { key: 'middle', label: 'Middle', pts: '+5' },
+        { key: 'bottom', label: 'Bottom', pts: '+2' },
+      ];
+
+      const rowsHTML = roles.map(function (r) {
+        const tikId = secretCard[r.key];
+        const tiki  = TIKIS[tikId] || { name: tikId || '?', color: '#888' };
+        return '<div class="secret-row">' +
+          '<span class="secret-tiki-dot" style="background:' + tiki.color + '"></span>' +
+          '<span>' + tiki.name + '</span>' +
+          '<span class="secret-pts-badge">' + r.pts + '</span>' +
+        '</div>';
+      }).join('');
+
+      const face = container.querySelector('.secret-card-face');
+      if (face) {
+        face.innerHTML =
+          '<div class="secret-card-header">Secret Tikis</div>' +
+          '<div class="secret-divider"></div>' +
+          '<div class="secret-rows">' + rowsHTML + '</div>';
+      }
+
+      container.classList.toggle('revealed', !!revealed);
+    }
+
+    // ── Action cards ──────────────────────────────────────────────────────────
+    function renderActionCards(cards, played) {
+      const container = document.getElementById('your-action-cards');
+      if (!container) return;
+
+      myCards       = cards;
+      playedCardIds = played || [];
+      container.innerHTML = '';
+
+      const n    = cards.length;
+      const span = Math.min(n * 7, 44);       // total fan spread in degrees
+      const step = n > 1 ? span / (n - 1) : 0;
+
+      cards.forEach((card, i) => {
+        const rot     = -span / 2 + i * step;
+        const yOff    = Math.abs(rot) * 0.28;
+        const isPlayed = playedCardIds.includes(card.id);
+
+        const el = document.createElement('div');
+        el.className     = 'game-card' + (isPlayed ? ' played' : '');
+        el.dataset.id    = card.id;
+        el.dataset.type  = card.type;
+        el.style.cssText = '--rot:' + rot + 'deg;--y-off:' + yOff + 'px';
+
+        const icon  = CARD_ICONS[card.type]  || '?';
+        const label = CARD_LABELS[card.type] || card.type;
+        const desc  = CARD_DESCS[card.type]  || '';
+
+        el.innerHTML =
+          '<div class="game-card-inner">' +
+            '<div class="game-card-front">' +
+              '<div class="card-icon">' + icon + '</div>' +
+              '<div class="card-divider"></div>' +
+              '<div class="card-label">' + label + '</div>' +
+              '<div class="card-desc">' + desc + '</div>' +
+            '</div>' +
+          '</div>';
+
+        if (!isPlayed) el.addEventListener('click', function () { onCardClick(card.id, card.type); });
+        container.appendChild(el);
+      });
+    }
+
+    function refreshCardStates() {
+      const container = document.getElementById('your-action-cards');
+      if (!container) return;
+      container.querySelectorAll('.game-card').forEach(el => {
+        const cid = el.dataset.id;
+        const isPlayed = playedCardIds.includes(cid);
+        el.classList.toggle('played',       isPlayed);
+        el.classList.toggle('not-playable', !isPlayed && uiState !== 'idle' && uiState !== 'card_selected');
+        el.classList.toggle('selected',     cid === selectedCardId);
+      });
+    }
+
+    function onCardClick(cardId, cardType) {
+      if (uiState !== 'idle' && uiState !== 'card_selected') return;
+      if (playedCardIds.includes(cardId)) return;
+
+      if (uiState === 'card_selected' && selectedCardId === cardId) {
+        // Deselect
+        selectedCardId   = null;
+        selectedCardType = null;
+        setTurnState('idle');
+        if (window.clearHighlights) clearHighlights();
+        if (onCardSelectCb) onCardSelectCb(null, null);
+        return;
+      }
+
+      selectedCardId   = cardId;
+      selectedCardType = cardType;
+      setTurnState('card_selected');
+
+      const targets = getValidTargets(cardType, boardState);
+      if (window.highlightValidTargets) highlightValidTargets(targets);
+
+      if (window.onTikiClicked) {
+        onTikiClicked(function (tikId) {
+          if (uiState !== 'card_selected') return;
+          const cid = selectedCardId;
+          selectedCardId   = null;
+          selectedCardType = null;
+          setTurnState('waiting_for_server');
+          if (window.clearHighlights) clearHighlights();
+          if (onCardTargetCb) onCardTargetCb(cid, tikId);
+        });
+      }
+
+      if (onCardSelectCb) onCardSelectCb(cardId, cardType);
+    }
+
+    // ── Valid target computation ──────────────────────────────────────────────
+    function getValidTargets(cardType, board) {
+      if (!board || board.length === 0) return [];
+      const getId = t => (typeof t === 'string' ? t : t.id);
+
+      if (cardType === 'topple') return board.filter((_, i) => i > 0).map(getId);
+      if (cardType === 'toast')  { const last = board[board.length - 1]; return last ? [getId(last)] : []; }
+
+      // up1 → n=1, up2 → n=2, up3 → n=3
+      const n = parseInt(cardType.replace('up', ''), 10) || 0;
+      return board.filter((_, i) => i >= n).map(getId);
+    }
+
+    // ── Round indicator ───────────────────────────────────────────────────────
+    function setRoundIndicator(current, total) {
+      const el = document.getElementById('round-indicator');
+      if (el) el.textContent = 'Round ' + current + ' of ' + total;
+    }
+
+    // ── Rules tooltip close button ────────────────────────────────────────────
+    document.addEventListener('DOMContentLoaded', function () {
+      const closeBtn = document.getElementById('btn-rules-close');
+      if (closeBtn) {
+        closeBtn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          document.getElementById('rules-tooltip').classList.remove('visible');
+        });
+      }
+
+      // Secret card flip
+      const secretCard = document.getElementById('your-secret-card');
+      if (secretCard) {
+        secretCard.addEventListener('click', function () {
+          this.classList.toggle('revealed');
+        });
+      }
+    });
+
+    // ── Public API ────────────────────────────────────────────────────────────
+    window.UI = {
+      setTurnState,
+      renderScorePills,
+      renderSecretCard,
+      renderActionCards,
+      setRoundIndicator,
+      getValidTargets,
+
+      setBoardState: function (board) { boardState = board; },
+      markCardPlayed: function (cardId) {
+        if (!playedCardIds.includes(cardId)) playedCardIds.push(cardId);
+        refreshCardStates();
+      },
+      onCardTarget: function (cb) { onCardTargetCb = cb; },
+      onCardSelect: function (cb) { onCardSelectCb = cb; },
+      reset: function () {
+        selectedCardId = null; selectedCardType = null;
+        setTurnState('not_your_turn');
+        if (window.clearHighlights) clearHighlights();
+      },
+    };
+
+
+  })();
+  </script>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       SOUND ENGINE  (Web Audio API — no external files)
+  ════════════════════════════════════════════════════════════════════════ -->
+  <script>
+  var SoundEngine = (function () {
+    'use strict';
+
+    var ctx       = null;
+    var muted     = localStorage.getItem('tiki_muted') === '1';
+    var masterGain = null;
+    var ambNodes  = null;   // ambient oscillator + noise source refs
+
+    // ── Bootstrap ──────────────────────────────────────────────────────────────
+    function init() {
+      if (ctx) {
+        if (ctx.state === 'suspended') ctx.resume();
+        return;
+      }
+      ctx = new (window.AudioContext || window.webkitAudioContext)();
+      masterGain = ctx.createGain();
+      masterGain.gain.value = muted ? 0 : 1;
+      masterGain.connect(ctx.destination);
+    }
+
+    // ── Helpers ────────────────────────────────────────────────────────────────
+
+    // White-noise buffer (1 second, cached)
+    var _noiseBuffer = null;
+    function noiseBuffer() {
+      if (_noiseBuffer) return _noiseBuffer;
+      var len = ctx.sampleRate;
+      _noiseBuffer = ctx.createBuffer(1, len, ctx.sampleRate);
+      var data = _noiseBuffer.getChannelData(0);
+      for (var i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+      return _noiseBuffer;
+    }
+
+    // One-shot noise burst through a filter
+    function noiseShot(filterType, freq, q, peak, decay, when) {
+      when = when || ctx.currentTime;
+      var src    = ctx.createBufferSource();
+      src.buffer = noiseBuffer();
+
+      var flt = ctx.createBiquadFilter();
+      flt.type            = filterType;
+      flt.frequency.value = freq;
+      flt.Q.value         = q;
+
+      var env = ctx.createGain();
+      env.gain.setValueAtTime(0, when);
+      env.gain.linearRampToValueAtTime(peak, when + 0.005);
+      env.gain.exponentialRampToValueAtTime(0.0001, when + decay);
+
+      src.connect(flt);
+      flt.connect(env);
+      env.connect(masterGain);
+      src.start(when);
+      src.stop(when + decay + 0.01);
+    }
+
+    // One-shot oscillator
+    function oscShot(type, freq, peak, attack, decay, when, freqEndVal) {
+      when = when || ctx.currentTime;
+      var osc = ctx.createOscillator();
+      osc.type            = type;
+      osc.frequency.value = freq;
+      if (freqEndVal !== undefined) {
+        osc.frequency.setValueAtTime(freq, when);
+        osc.frequency.exponentialRampToValueAtTime(freqEndVal, when + decay);
+      }
+
+      var env = ctx.createGain();
+      env.gain.setValueAtTime(0, when);
+      env.gain.linearRampToValueAtTime(peak, when + attack);
+      env.gain.exponentialRampToValueAtTime(0.0001, when + decay);
+
+      osc.connect(env);
+      env.connect(masterGain);
+      osc.start(when);
+      osc.stop(when + decay + 0.02);
+    }
+
+    // ── Sounds ─────────────────────────────────────────────────────────────────
+
+    var sounds = {
+
+      tiki_move: function () {
+        // Wooden clunk: bandpass noise at 200 Hz, 120 ms
+        noiseShot('bandpass', 200, 8, 0.55, 0.12);
+        // Add a very short low thud transient
+        oscShot('sine', 90, 0.35, 0.003, 0.06);
+      },
+
+      tiki_topple: function () {
+        // Whoosh: osc sweeping 400 → 80 Hz over 300 ms
+        var now = ctx.currentTime;
+        oscShot('sawtooth', 400, 0.22, 0.01, 0.30, now, 80);
+        // Noise swoosh layer
+        noiseShot('bandpass', 300, 1.5, 0.28, 0.28, now);
+        // Thud landing at 300 ms
+        noiseShot('bandpass', 150, 6,   0.6,  0.13, now + 0.30);
+        oscShot('sine', 70, 0.4, 0.003, 0.07, now + 0.30);
+      },
+
+      tiki_toast: function () {
+        // Highpass sizzle 2000 Hz + crackle modulation
+        var now = ctx.currentTime;
+        var src = ctx.createBufferSource();
+        src.buffer = noiseBuffer();
+        src.loop   = true;
+
+        var hp  = ctx.createBiquadFilter();
+        hp.type            = 'highpass';
+        hp.frequency.value = 2000;
+        hp.Q.value         = 0.7;
+
+        // LFO for crackle modulation
+        var lfo = ctx.createOscillator();
+        lfo.type            = 'square';
+        lfo.frequency.value = 38;
+        var lfoGain = ctx.createGain();
+        lfoGain.gain.value = 600;
+        lfo.connect(lfoGain);
+        lfoGain.connect(hp.frequency);
+        lfo.start(now);
+        lfo.stop(now + 0.42);
+
+        var env = ctx.createGain();
+        env.gain.setValueAtTime(0, now);
+        env.gain.linearRampToValueAtTime(0.55, now + 0.012);
+        env.gain.setValueAtTime(0.55, now + 0.012);
+        env.gain.exponentialRampToValueAtTime(0.0001, now + 0.42);
+
+        src.connect(hp);
+        hp.connect(env);
+        env.connect(masterGain);
+        src.start(now);
+        src.stop(now + 0.43);
+      },
+
+      card_play: function () {
+        // Soft paper slap: bandpass noise 800 Hz, 80 ms
+        noiseShot('bandpass', 800, 4, 0.40, 0.08);
+      },
+
+      card_select: function () {
+        // Subtle click: short sine 1200 Hz, 40 ms, low gain
+        oscShot('sine', 1200, 0.12, 0.002, 0.04);
+      },
+
+      round_end_reveal: function () {
+        // 8 accelerating snare hits then a loud final hit
+        var now      = ctx.currentTime;
+        var baseDur  = 0.22;   // first interval
+        var t        = now;
+        for (var i = 0; i < 8; i++) {
+          var isLast = (i === 7);
+          var vol    = isLast ? 0.85 : 0.25 + i * 0.03;
+          // Snare = bandpass noise + high freq transient
+          noiseShot('bandpass', isLast ? 400 : 300, 3, vol, isLast ? 0.16 : 0.07, t);
+          noiseShot('highpass',  isLast ? 4000 : 3000, 0.8, vol * 0.6, 0.05, t);
+          t        += baseDur;
+          baseDur  *= 0.72;   // accelerate
+        }
+      },
+
+      score_tick: function () {
+        // Soft wooden tick 880 Hz, 30 ms
+        oscShot('sine', 880, 0.10, 0.001, 0.03);
+      },
+
+      game_over_fanfare: function () {
+        // C5 E5 G5 C6 each 150 ms
+        var freqs = [523.25, 659.25, 783.99, 1046.50];
+        var now   = ctx.currentTime;
+        freqs.forEach(function (f, i) {
+          var t = now + i * 0.155;
+          // Main sine note
+          oscShot('sine',     f,       0.28, 0.008, 0.15, t);
+          // Slight harmonic shimmer
+          oscShot('triangle', f * 2,   0.06, 0.005, 0.12, t);
+          // Fake reverb tail (delayed, lower gain)
+          oscShot('sine',     f,       0.06, 0.001, 0.30, t + 0.04);
+        });
+      },
+
+      error_buzz: function () {
+        // Square wave 220 Hz, 150 ms
+        oscShot('square', 220, 0.18, 0.004, 0.15);
+      },
+
+    };
+
+    // ── Ambient loop ───────────────────────────────────────────────────────────
+
+    function startAmbient() {
+      if (!ctx) init();
+      if (!ctx) return;       // AudioContext unavailable (no user gesture yet)
+      if (ambNodes) return;   // already running
+
+      // Resume suspended context (happens if browser auto-suspended it)
+      // then build the ambient nodes once resumed.
+      function _build() {
+        if (ambNodes) return; // guard against double-call if resume fires twice
+        var now = ctx.currentTime;
+        _startAmbientNodes(now);
+      }
+
+      if (ctx.state === 'suspended') {
+        ctx.resume().then(_build);
+        return;
+      }
+
+      _startAmbientNodes(ctx.currentTime);
+    }
+
+    function _startAmbientNodes(now) {
+      if (ambNodes) return;
+
+      // Low drone 55 Hz
+      var drone = ctx.createOscillator();
+      drone.type            = 'sine';
+      drone.frequency.value = 55;
+      var droneGain = ctx.createGain();
+      droneGain.gain.value = 0.04;
+      // Slow wobble via another LFO
+      var droneLfo = ctx.createOscillator();
+      droneLfo.type            = 'sine';
+      droneLfo.frequency.value = 0.18;
+      var droneLfoGain = ctx.createGain();
+      droneLfoGain.gain.value  = 4;
+      droneLfo.connect(droneLfoGain);
+      droneLfoGain.connect(drone.frequency);
+      drone.connect(droneGain);
+      droneGain.connect(masterGain);
+      drone.start(now);
+      droneLfo.start(now);
+
+      // Gentle ocean noise: lowpass at 800 Hz, very low gain
+      var noiseSrc = ctx.createBufferSource();
+      noiseSrc.buffer = noiseBuffer();
+      noiseSrc.loop   = true;
+      var lp = ctx.createBiquadFilter();
+      lp.type            = 'lowpass';
+      lp.frequency.value = 800;
+      lp.Q.value         = 0.5;
+      var noiseGain = ctx.createGain();
+      noiseGain.gain.value = 0.025;
+      // Slow amplitude swell (simulate waves)
+      var swellLfo = ctx.createOscillator();
+      swellLfo.type            = 'sine';
+      swellLfo.frequency.value = 0.12;
+      var swellDepth = ctx.createGain();
+      swellDepth.gain.value  = 0.015;
+      swellLfo.connect(swellDepth);
+      swellDepth.connect(noiseGain.gain);
+      noiseSrc.connect(lp);
+      lp.connect(noiseGain);
+      noiseGain.connect(masterGain);
+      noiseSrc.start(now);
+      swellLfo.start(now);
+
+      ambNodes = { drone: drone, droneLfo: droneLfo, noiseSrc: noiseSrc, swellLfo: swellLfo };
+    }
+
+    function stopAmbient() {
+      if (!ambNodes) return;
+      var t = ctx.currentTime;
+      try {
+        ambNodes.drone.stop(t + 0.5);
+        ambNodes.droneLfo.stop(t + 0.5);
+        ambNodes.noiseSrc.stop(t + 0.5);
+        ambNodes.swellLfo.stop(t + 0.5);
+      } catch (_) {}
+      ambNodes = null;
+    }
+
+    // ── Public API ─────────────────────────────────────────────────────────────
+
+    function play(name) {
+      if (!ctx) return;           // not yet initialised (no user gesture yet)
+      if (muted) return;
+      if (ctx.state === 'suspended') ctx.resume();
+      var fn = sounds[name];
+      if (fn) {
+        try { fn(); } catch (e) { console.warn('[SoundEngine] ' + name + ':', e); }
+      }
+    }
+
+    // ── Mute toggle (wired to button below) ───────────────────────────────────
+
+    document.addEventListener('DOMContentLoaded', function () {
+      var btn = document.getElementById('btn-mute');
+      if (!btn) return;
+
+      // Restore saved preference
+      btn.textContent = muted ? '🔇' : '🔊';
+
+      btn.addEventListener('click', function () {
+        init();   // ensure ctx exists
+        muted = !muted;
+        localStorage.setItem('tiki_muted', muted ? '1' : '0');
+        btn.textContent = muted ? '🔇' : '🔊';
+        if (masterGain) masterGain.gain.value = muted ? 0 : 1;
+        if (!muted && ambNodes) {
+          // If we're in-game and just un-muted, ambient was stopped; restart
+          // (only restart if we're on the game screen)
+          var gameScreen = document.getElementById('screen-game');
+          if (gameScreen && gameScreen.classList.contains('active')) startAmbient();
+        }
+      });
+
+      // Init AudioContext on ANY first user gesture anywhere in the document
+      // (satisfies browser autoplay policy)
+      function firstGesture() {
+        init();
+        document.removeEventListener('click',     firstGesture, true);
+        document.removeEventListener('touchstart', firstGesture, true);
+      }
+      document.addEventListener('click',     firstGesture, true);
+      document.addEventListener('touchstart', firstGesture, true);
+    });
+
+    return {
+      init:          init,
+      play:          play,
+      startAmbient:  startAmbient,
+      stopAmbient:   stopAmbient,
+    };
+  }());
+  </script>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       SOCKET.IO NETWORKING
+  ════════════════════════════════════════════════════════════════════════ -->
+  <script>
+  (function () {
+    'use strict';
+
+    // ── Connection ────────────────────────────────────────────────────────────
+    const socket = io();
+
+    // ── Client state ──────────────────────────────────────────────────────────
+    let myPlayerId      = null;
+    let myRoomCode      = null;
+    let isHost          = false;
+    let currentView     = null;   // latest playerView from server
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+    function showError(elementId, msg) {
+      const el = document.getElementById(elementId);
+      if (el) el.textContent = msg;
+    }
+    function clearError(elementId) { showError(elementId, ''); }
+
+    function showToast(msg, durationMs) {
+      durationMs = durationMs || 4000;
+      let toast = document.getElementById('_toast');
+      if (!toast) {
+        toast = document.createElement('div');
+        toast.id = '_toast';
+        toast.style.cssText =
+          'position:fixed;top:18px;left:50%;transform:translateX(-50%);' +
+          'background:rgba(13,4,0,0.93);border:1px solid rgba(212,175,55,0.4);' +
+          'color:#f5ead0;font-family:"Crimson Text",serif;font-style:italic;' +
+          'font-size:1rem;padding:10px 24px;border-radius:6px;z-index:9999;' +
+          'box-shadow:0 6px 20px rgba(0,0,0,0.7);pointer-events:none;' +
+          'transition:opacity 0.3s;';
+        document.body.appendChild(toast);
+      }
+      toast.textContent = msg;
+      toast.style.opacity = '1';
+      clearTimeout(toast._timer);
+      toast._timer = setTimeout(function () { toast.style.opacity = '0'; }, durationMs);
+    }
+
+    // Build a player-view board array → Three.js format
+    function boardToThree(board) {
+      return board.map(function (t) {
+        return { id: t.id, name: t.name, color: t.color, position: t.position };
+      });
+    }
+
+    // Decide turn state for UI
+    function applyTurnState(view) {
+      if (!view) return;
+      const isMyTurn = view.currentPlayerId === myPlayerId;
+      if (isMyTurn) {
+        UI.setTurnState('idle');
+      } else {
+        const p = view.players.find(function (pl) { return pl.id === view.currentPlayerId; });
+        UI.setTurnState('not_your_turn', { playerName: p ? p.name : '' });
+      }
+    }
+
+    // Full game-screen refresh from a playerView
+    function applyPlayerView(view, freshBoard) {
+      currentView = view;
+      UI.setBoardState(view.board);
+      UI.setRoundIndicator(view.roundNumber, view.totalRounds);
+
+      const played = view.myActionCards.filter(function (c) { return c.played; }).map(function (c) { return c.id; });
+      UI.renderActionCards(view.myActionCards, played);
+      UI.renderSecretCard(view.mySecretCard, false);
+
+      const activePid = view.currentPlayerId;
+      UI.renderScorePills(view.players.map(function (p) {
+        return { id: p.id, name: p.name, color: p.color, totalScore: p.score };
+      }), activePid);
+
+      applyTurnState(view);
+
+      if (freshBoard) {
+        if (window.initBoard) initBoard(boardToThree(view.board));
+      } else {
+        if (window.updateBoard) updateBoard(boardToThree(view.board));
+      }
+    }
+
+    // ── Card play wiring ──────────────────────────────────────────────────────
+    UI.onCardTarget(function (cardId, tikId) {
+      if (!currentView) return;
+      const card = currentView.myActionCards.find(function (c) { return c.id === cardId; });
+      if (!card) return;
+      SoundEngine.play('card_play');
+      socket.emit('play_card', {
+        roomCode:     myRoomCode,
+        cardType:     card.type,
+        targetTikiId: tikId || null,
+      });
+      UI.setTurnState('waiting_for_server');
+    });
+
+    // Toast card is auto-play (no tiki target) — handled via card selection
+    UI.onCardSelect(function (cardId, cardType) {
+      // card_select fires for every card selection (including deselect when cardId is null)
+      if (cardId) SoundEngine.play('card_select');
+      if (!cardId || cardType !== 'toast') return;
+      // Toast doesn't need a tiki click; emit immediately
+      SoundEngine.play('card_play');
+      socket.emit('play_card', {
+        roomCode:     myRoomCode,
+        cardType:     'toast',
+        targetTikiId: null,
+      });
+      UI.setTurnState('waiting_for_server');
+      if (window.clearHighlights) clearHighlights();
+    });
+
+    // ── HOME SCREEN ───────────────────────────────────────────────────────────
+    document.getElementById('btn-create').addEventListener('click', function () {
+      const name = document.getElementById('player-name').value.trim();
+      if (!name) { showError('home-error', 'Please enter your name.'); return; }
+      clearError('home-error');
+      socket.emit('create_room', { playerName: name });
+    });
+
+    document.getElementById('btn-join-confirm').addEventListener('click', function () {
+      const name = document.getElementById('player-name').value.trim();
+      const code = document.getElementById('room-code-input').value.trim().toUpperCase();
+      if (!name) { showError('home-error', 'Please enter your name.'); return; }
+      if (code.length !== 4) { showError('home-error', 'Room code must be 4 letters.'); return; }
+      clearError('home-error');
+      myRoomCode = code;
+      sessionStorage.setItem('tt_room', code);
+      socket.emit('join_room', { roomCode: code, playerName: name });
+    });
+
+    // ── LOBBY SCREEN ──────────────────────────────────────────────────────────
+    function renderPlayerList(players) {
+      const list = document.getElementById('player-list');
+      if (!list) return;
+      list.innerHTML = '';
+      players.forEach(function (p) {
+        const pill = document.createElement('div');
+        pill.className = 'player-pill';
+        pill.innerHTML =
+          '<span class="player-color-dot" style="background:' + p.color + ';color:' + p.color + '"></span>' +
+          '<span>' + p.name + '</span>' +
+          (p.isHost ? '<span class="host-badge">Host</span>' : '');
+        list.appendChild(pill);
+      });
+
+      const startBtn  = document.getElementById('btn-start-game');
+      const statusEl  = document.getElementById('lobby-status');
+      const canStart  = isHost && players.length >= 2;
+      startBtn.classList.toggle('visible', canStart);
+      if (statusEl) {
+        statusEl.textContent = players.length < 2
+          ? 'Waiting for players\u2026 (2\u20134 players needed)'
+          : players.length >= 4
+            ? 'Room is full. Ready to start!'
+            : 'Waiting for more players or start the game.';
+      }
+    }
+
+    document.getElementById('btn-start-game').addEventListener('click', function () {
+      socket.emit('start_game', { roomCode: myRoomCode });
+    });
+
+    // ── ROUND END SCREEN ──────────────────────────────────────────────────────
+    function buildRoundEndScreen(data) {
+      // Heading
+      const heading = document.getElementById('round-end-heading');
+      if (heading && currentView) {
+        heading.textContent = 'Round ' + currentView.roundNumber + ' Complete!';
+      }
+
+      // Secret cards reveal (staggered flip)
+      const revealEl = document.getElementById('all-secret-cards-reveal');
+      if (revealEl) {
+        revealEl.innerHTML = '';
+        Object.keys(data.allSecretCards).forEach(function (pid, i) {
+          const sc   = data.allSecretCards[pid];
+          const pl   = data.players.find(function (p) { return p.id === pid; });
+          if (!pl || !sc) return;
+
+          const TIKIS_DATA = {
+            hookipa:{name:'Hookipa',color:'#8a8a8a'},lani:{name:'Lani',color:'#7b2fbe'},
+            kai:{name:'Kai',color:'#c0392b'},malu:{name:'Malu',color:'#e91e8c'},
+            nalu:{name:'Nalu',color:'#f39c12'},pele:{name:'Pele',color:'#e67e22'},
+            honu:{name:'Honu',color:'#27ae60'},mana:{name:'Mana',color:'#2980b9'},
+            koa:{name:'Koa',color:'#795548'},
+          };
+
+          const card = document.createElement('div');
+          card.className = 'secret-card-reveal';
+          card.style.cssText = 'opacity:0;transform:rotateY(90deg);transition:opacity 0.35s,transform 0.35s;';
+          const topT    = TIKIS_DATA[sc.top]    || { name: sc.top,    color: '#888' };
+          const midT    = TIKIS_DATA[sc.middle] || { name: sc.middle, color: '#888' };
+          const botT    = TIKIS_DATA[sc.bottom] || { name: sc.bottom, color: '#888' };
+          card.innerHTML =
+            '<span class="owner-name" style="color:' + pl.color + '">' + pl.name + '</span>' +
+            '<div style="display:flex;flex-direction:column;gap:3px">' +
+              '<span style="font-size:.8rem">⬆ <span style="color:' + topT.color + '">■</span> ' + topT.name + ' <b>(+9)</b></span>' +
+              '<span style="font-size:.8rem">↔ <span style="color:' + midT.color + '">■</span> ' + midT.name + ' <b>(+5)</b></span>' +
+              '<span style="font-size:.8rem">⬇ <span style="color:' + botT.color + '">■</span> ' + botT.name + ' <b>(+2)</b></span>' +
+            '</div>';
+          revealEl.appendChild(card);
+
+          setTimeout(function () {
+            card.style.opacity = '1';
+            card.style.transform = 'rotateY(0deg)';
+          }, 300 + i * 300);
+        });
+      }
+
+      // Round scores breakdown
+      const breakdownEl = document.getElementById('round-scores-breakdown');
+      if (breakdownEl) {
+        breakdownEl.innerHTML = '';
+        data.players.slice().sort(function (a, b) { return b.roundScore - a.roundScore; })
+          .forEach(function (p) {
+            const row = document.createElement('div');
+            row.className = 'score-row';
+            row.innerHTML =
+              '<span class="player-dot" style="background:' + p.color + '"></span>' +
+              '<span>' + p.name + '</span>' +
+              '<span class="pts" style="' + (p.roundScore > 0 ? 'color:var(--gold)' : 'opacity:.5') + '">' +
+                (p.roundScore > 0 ? '+' : '') + p.roundScore + ' pts</span>';
+            breakdownEl.appendChild(row);
+          });
+      }
+
+      // Total scores bar track
+      const trackEl = document.getElementById('total-scores-track');
+      if (trackEl) {
+        trackEl.innerHTML = '';
+        const maxScore = Math.max.apply(null, data.players.map(function (p) { return p.score; })) || 1;
+        data.players.slice().sort(function (a, b) { return b.score - a.score; })
+          .forEach(function (p) {
+            const pct = Math.round((p.score / maxScore) * 100);
+            const row = document.createElement('div');
+            row.className = 'total-score-bar-row';
+            row.innerHTML =
+              '<span style="min-width:80px;font-size:.9rem;color:' + p.color + '">' + p.name + '</span>' +
+              '<div class="bar-bg"><div class="bar-fill" style="width:0%;background:' + p.color + '"></div></div>' +
+              '<span class="bar-score">' + p.score + '</span>';
+            trackEl.appendChild(row);
+            requestAnimationFrame(function () {
+              row.querySelector('.bar-fill').style.width = pct + '%';
+            });
+          });
+      }
+
+      // Host controls
+      const nextBtn   = document.getElementById('btn-next-round');
+      const waitingEl = document.getElementById('waiting-next-round');
+      if (nextBtn)   nextBtn.classList.toggle('visible', isHost);
+      if (waitingEl) waitingEl.style.display = isHost ? 'none' : '';
+    }
+
+    document.getElementById('btn-next-round').addEventListener('click', function () {
+      socket.emit('next_round', { roomCode: myRoomCode });
+    });
+
+    // ── GAME OVER SCREEN ──────────────────────────────────────────────────────
+    function buildGameOverScreen(data) {
+      const sorted = data.finalScores.slice().sort(function (a, b) { return b.score - a.score; });
+      const winner = data.winner;
+
+      document.getElementById('winner-name-text').textContent  = winner.name;
+      document.getElementById('winner-score-text').textContent = winner.score + ' points';
+
+      const lb = document.getElementById('final-leaderboard');
+      if (lb) {
+        lb.innerHTML = '';
+        sorted.forEach(function (p, i) {
+          const row = document.createElement('div');
+          row.className = 'leaderboard-row' + (i === 0 ? ' rank-1' : '');
+          row.innerHTML =
+            '<span class="rank">' + (i + 1) + '</span>' +
+            '<span class="player-dot" style="background:' + p.color + '"></span>' +
+            '<span>' + p.name + '</span>' +
+            '<span class="final-score">' + p.score + '</span>';
+          lb.appendChild(row);
+        });
+      }
+    }
+
+    document.getElementById('btn-play-again').addEventListener('click', function () {
+      sessionStorage.removeItem('tt_room');
+      sessionStorage.removeItem('tt_player');
+      sessionStorage.removeItem('tt_host');
+      window.location.reload();
+    });
+
+    // ── SOCKET EVENTS ─────────────────────────────────────────────────────────
+
+    socket.on('connect', function () {
+      // On reconnect after a mid-game drop, re-request state if we have credentials
+      const savedRoom   = sessionStorage.getItem('tt_room');
+      const savedPlayer = sessionStorage.getItem('tt_player');
+      if (savedRoom && savedPlayer && !myPlayerId) {
+        myRoomCode = savedRoom;
+        myPlayerId = savedPlayer;
+        isHost     = sessionStorage.getItem('tt_host') === '1';
+        socket.emit('request_state', { roomCode: savedRoom, playerId: savedPlayer });
+      }
+    });
+
+    socket.on('disconnect', function () {
+      showToast('Connection lost. Trying to reconnect\u2026', 8000);
+    });
+
+    socket.on('room_created', function (data) {
+      myPlayerId = data.playerId;
+      myRoomCode = data.roomCode;
+      isHost     = true;
+      sessionStorage.setItem('tt_room',   data.roomCode);
+      sessionStorage.setItem('tt_player', data.playerId);
+      sessionStorage.setItem('tt_host',   '1');
+      document.getElementById('lobby-room-code').textContent = data.roomCode;
+      showScreen('screen-lobby');
+    });
+
+    socket.on('room_joined', function (data) {
+      myPlayerId = data.playerId;
+      isHost     = false;
+      sessionStorage.setItem('tt_player', data.playerId);
+      sessionStorage.setItem('tt_host',   '0');
+      // myRoomCode already set by btn-join-confirm handler
+      document.getElementById('lobby-room-code').textContent = myRoomCode || '????';
+      showScreen('screen-lobby');
+    });
+
+    socket.on('lobby_update', function (data) {
+      renderPlayerList(data.players);
+    });
+
+    socket.on('host_changed', function (data) {
+      if (data.newHostId === myPlayerId) {
+        isHost = true;
+        showToast('You are now the host.');
+      }
+    });
+
+    socket.on('game_started', function (view) {
+      currentView = view;
+      showScreen('screen-game');
+      // setTimeout 0 lets the browser commit the flex layout before Three.js
+      // reads clientWidth/clientHeight on the container.
+      setTimeout(function () {
+        applyPlayerView(view, true);
+        SoundEngine.startAmbient();
+      }, 0);
+    });
+
+    socket.on('state_update', function (view) {
+      // If we're on the round-end screen, ignore state_update
+      const gameScreen = document.getElementById('screen-game');
+      if (!gameScreen || !gameScreen.classList.contains('active')) return;
+
+      // Detect card type played by comparing old vs new board to decide sound
+      if (currentView) {
+        const prevIds = currentView.board.map(function (t) { return t.id; });
+        const nextIds = view.board.map(function (t) { return t.id; });
+        // Check if a tiki was toasted (missing from new board)
+        const toasted = prevIds.filter(function (id) { return !nextIds.includes(id); });
+        if (toasted.length > 0) {
+          SoundEngine.play('tiki_toast');
+        } else if (nextIds.length < prevIds.length) {
+          SoundEngine.play('tiki_toast');
+        } else {
+          // Detect topple: a tiki moved to last position
+          const prevBottom = prevIds[prevIds.length - 1];
+          const nextBottom = nextIds[nextIds.length - 1];
+          if (nextBottom && prevBottom !== nextBottom && prevIds.indexOf(nextBottom) !== prevIds.length - 1) {
+            SoundEngine.play('tiki_topple');
+          } else if (JSON.stringify(prevIds) !== JSON.stringify(nextIds)) {
+            SoundEngine.play('tiki_move');
+          }
+        }
+      }
+
+      applyPlayerView(view, false);
+    });
+
+    socket.on('round_ended', function (data) {
+      SoundEngine.play('round_end_reveal');
+      setTimeout(function () {
+        buildRoundEndScreen(data);
+        showScreen('screen-round-end');
+      }, 1000);
+    });
+
+    socket.on('round_started', function (view) {
+      currentView = view;
+      showScreen('screen-game');
+      setTimeout(function () {
+        applyPlayerView(view, true);
+        SoundEngine.startAmbient();
+        // Animate secret card flip-in
+        var sc = document.getElementById('your-secret-card');
+        if (sc) {
+          sc.classList.remove('revealed');
+          setTimeout(function () { sc.classList.add('revealed'); }, 800);
+          setTimeout(function () { sc.classList.remove('revealed'); }, 2200);
+        }
+      });
+    });
+
+    socket.on('game_over', function (data) {
+      SoundEngine.stopAmbient();
+      setTimeout(function () {
+        buildGameOverScreen(data);
+        showScreen('screen-game-over');
+        SoundEngine.play('game_over_fanfare');
+      }, 1200);
+    });
+
+    socket.on('player_disconnected', function (data) {
+      showToast(data.playerName + ' disconnected. Game paused.', 6000);
+    });
+
+    socket.on('game_resumed', function (data) {
+      showToast((data.playerName || 'A player') + ' reconnected. Game resumed.', 3500);
+    });
+
+    socket.on('error', function (data) {
+      SoundEngine.play('error_buzz');
+      // Re-enable UI if we were waiting
+      if (currentView) {
+        const isMyTurn = currentView.currentPlayerId === myPlayerId;
+        if (isMyTurn) UI.setTurnState('idle');
+      }
+      // Show error in the active screen
+      const screens = ['home-error', 'lobby-error', 'round-end-error'];
+      const active  = document.querySelector('.screen.active');
+      const errId   = active ? active.id.replace('screen-', '').replace('-', '-') + '-error' : null;
+
+      if (errId && document.getElementById(errId)) {
+        showError(errId, data.message);
+        setTimeout(function () { clearError(errId); }, 4000);
+      } else {
+        showToast('Error: ' + data.message, 5000);
+      }
+    });
+
+    // ── Start on home screen ──────────────────────────────────────────────────
+    document.addEventListener('DOMContentLoaded', function () {
+      showScreen('screen-home');
+    });
+
+  })();
+  </script>
+
+</body>
+</html>

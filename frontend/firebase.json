@@ -1,0 +1,11 @@
+{
+  "auth": {
+    "providers": {
+      "emailPassword": true,
+      "googleSignIn": {
+        "oAuthBrandDisplayName": "Tiki Topple",
+        "supportEmail": "bhattacharjeesayantan86@gmail.com"
+      }
+    }
+  }
+}
