@@ -1,7 +1,24 @@
 import { useEffect, useRef } from 'react'
 import { io } from 'socket.io-client'
+import { toast } from 'sonner'
 import useGameStore from '../store/gameStore'
 import { useSoundEngine } from './useSoundEngine'
+
+// Human-readable move narration built from the server's card_played payload
+function narrateAction(a, myPlayerId) {
+  if (!a) return null
+  const who = a.actorId === myPlayerId ? 'You' : (a.actorName || 'Opponent')
+  const verb = a.actorId === myPlayerId ? '' : 's'
+  const target = a.targetName || 'a tiki'
+  switch (a.cardType) {
+    case 'up1':    return `${who} raise${verb} ${target} by 1`
+    case 'up2':    return `${who} raise${verb} ${target} by 2`
+    case 'up3':    return `${who} raise${verb} ${target} by 3`
+    case 'topple': return `${who} topple${verb} ${target} to the bottom`
+    case 'toast':  return `${who} toast${verb} ${a.toastedName || 'a tiki'} 🔥`
+    default:       return `${who} played ${a.cardType}`
+  }
+}
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3001'
 
@@ -66,6 +83,20 @@ export function useSocket() {
       })
     })
 
+    socket.on('vs_computer_ready', ({ roomCode, playerId, playerName, color, avatarId, ...playerView }) => {
+      useGameStore.setState({
+        myRoomCode: roomCode,
+        myPlayerId: playerId,
+        myName:     playerName,
+        myColor:    color,
+        myAvatarId: avatarId,
+        isHost:     true,
+      })
+      store.updateFromPlayerView(playerView)
+      store.setScreen('game')
+      sound.startAmbient()
+    })
+
     socket.on('room_joined', ({ playerId, playerName, color, avatarId, isHost }) => {
       useGameStore.setState({
         myPlayerId:  playerId,
@@ -77,7 +108,27 @@ export function useSocket() {
       })
     })
 
+    // Track previous lobby roster to detect joins/leaves for toast narration
+    let prevLobbyIds = new Set()
     socket.on('lobby_update', ({ players }) => {
+      const newIds = new Set(players.map(p => p.id))
+      // Skip narration on very first update (initial roster)
+      if (prevLobbyIds.size > 0) {
+        for (const p of players) {
+          if (!prevLobbyIds.has(p.id)) {
+            toast(`${p.name} joined the lobby`, {
+              duration: 2000,
+              style: { borderLeft: `4px solid ${p.color || '#d4af37'}` },
+            })
+          }
+        }
+        for (const id of prevLobbyIds) {
+          if (!newIds.has(id)) {
+            toast('A player left the lobby', { duration: 1800 })
+          }
+        }
+      }
+      prevLobbyIds = newIds
       store.setLobbyPlayers(players)
     })
 
@@ -98,6 +149,28 @@ export function useSocket() {
       store.updateFromPlayerView(playerView)
       store.clearSelection()
       sound.play('tiki_move')
+    })
+
+    // Server narrates each move so clients can display a toast + save history.
+    // Opponent moves stay on-screen longer (4.5s) so the player has time to
+    // read what happened before the next bot move fires.
+    socket.on('card_played', (action) => {
+      const state = useGameStore.getState()
+      const msg   = narrateAction(action, state.myPlayerId)
+      if (!msg) return
+      const isMine = action.actorId === state.myPlayerId
+      toast(msg, {
+        duration: isMine ? 2200 : 4500,
+        style: {
+          borderLeft: `5px solid ${action.actorColor || '#d4af37'}`,
+          fontSize: isMine ? 13 : 15,
+          fontWeight: isMine ? 400 : 700,
+        },
+      })
+      // Push to store history if the store exposes it
+      if (typeof state.pushMoveHistory === 'function') {
+        state.pushMoveHistory({ ...action, text: msg, at: Date.now() })
+      }
     })
 
     socket.on('round_ended', (data) => {
@@ -176,5 +249,8 @@ export function useSocket() {
     socketRef.current?.emit('request_state', { roomCode: myRoomCode, playerId: myPlayerId })
   }
 
-  return { createRoom, joinRoom, startGame, playCard, nextRound, requestState }
+  const startVsComputer = (playerCount, playerName, avatarId) =>
+    socketRef.current?.emit('start_vs_computer', { playerCount, playerName, avatarId })
+
+  return { createRoom, joinRoom, startGame, startVsComputer, playCard, nextRound, requestState }
 }

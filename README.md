@@ -1,228 +1,156 @@
 # Tiki Topple
 
-A real-time multiplayer tactical board game for 2–4 players. Manipulate a carved tiki totem tower to score points based on your secret target cards. Built with a maximalist tropical luxury aesthetic — physical, tactile, unforgettable.
+A real-time multiplayer board game I built to teach myself sockets, WebGL, and how to actually ship something instead of just prototyping forever.
 
-**Tech Stack:** Node.js / Socket.io (backend) · React 18 / Three.js / Framer Motion / Vite (frontend)
+2–4 players stack tikis on a totem, screw with each other's plans, and try to be the last one standing. Each player has secret target cards, so nobody really knows what anyone else is playing for — which is where the mind games kick in.
 
----
+Playable in the browser, no download.
 
-## Quick Start (Local Development)
+## Why this project
 
-### 1. Install dependencies
+Honestly? Two reasons:
+
+1. I wanted an excuse to learn real-time multiplayer (Socket.io) without doing another boring chat app.
+2. I've always liked board games and figured "how hard could it be to build one" — turns out surprisingly hard once you start caring about animation, latency, and how the game *feels*.
+
+Also, I liked the idea of making something that looks premium instead of the usual grey-box dev-art look. So I went a bit overboard on the visuals (r3f jungle scene, custom torch shaders, procedural ambient music, metallic gold everywhere). Zero regrets.
+
+## What's in the box
+
+- **Real-time multiplayer** — 2 to 4 players, join by room code, works across devices
+- **Play vs bots** — solo mode with 1–3 AI opponents (they think for a few seconds so you can actually see what they did)
+- **3D jungle scene** — react-three-fiber, custom GLSL flame shaders, ocean, palm trees, torch lights
+- **2D game board** — canvas-rendered tikis with idle animations, carved wooden shaft, engraved score stones
+- **Google sign-in + profile stats** — Firebase Auth + Firestore, stats sync across devices
+- **Procedural ambient music** — Web Audio API, no audio files, dark tribal-ish vibe with a toggle
+- **Reconnect handling** — if you drop mid-game, you get your state back
+- **Rate limiting, input sanitization, HTTPS redirect** — because putting real Socket.io in prod without any of that is asking for pain
+
+## Tech stack
+
+**Backend:** Node.js, Express, Socket.io, Helmet, express-rate-limit
+**Frontend:** React 18, Vite, Zustand, Framer Motion, Socket.io-client, react-three-fiber, drei, three.js, Sonner
+**Auth/DB:** Firebase Auth (Google), Firestore
+**Deploy:** Railway (single service — Express serves the built frontend)
+
+## Screenshots
+
+_(add screenshots here once you've deployed and grabbed some)_
+
+## Run it locally
+
+You'll need Node 18+ and npm.
 
 ```bash
+git clone https://github.com/SayantanXBTC/tiki-topple.git
 cd tiki-topple
-npm install          # installs concurrently at workspace root
-npm run install:all  # installs backend + frontend packages
+npm install
+npm run install:all    # installs backend + frontend deps
+npm run dev            # starts backend (:3001) + frontend (:5173) with hot reload
 ```
 
-### 2. Configure environment
+Then open http://localhost:5173.
+
+If you want to test multiplayer locally, open a second browser window (or an incognito tab) and join with the same room code.
+
+## Environment variables
+
+Copy the example files and fill in whatever's needed. Local dev mostly works out of the box.
+
+**`backend/.env`**
+```
+PORT=3001
+NODE_ENV=development
+CORS_ORIGIN=http://localhost:5173
+```
+
+**`frontend/.env`** — only needed if you split-deploy backend and frontend to different hosts.
+```
+VITE_SOCKET_URL=https://your-backend.example.com
+```
+
+Firebase config is checked in as public web config (it's meant to be public — access is locked down by Firestore rules and the Auth domain allowlist).
+
+## Deploy to Railway (single service, easiest option)
+
+I chose Railway because it's dead simple and Express can serve the built frontend from `backend/public/` so I only pay for one service.
+
+1. Push to GitHub (see the section below if you haven't yet).
+2. Go to [railway.app](https://railway.app), click **New Project → Deploy from GitHub repo**, pick this repo.
+3. Under **Settings → Build**:
+   - Root directory: `/` (leave blank if the repo root IS the project)
+   - Build command: `npm run install:all && npm run build`
+   - Start command: `npm start`
+4. Under **Settings → Variables**, add:
+   - `NODE_ENV` = `production`
+   - `CORS_ORIGIN` = `https://your-railway-app.up.railway.app` (fill in after you get the URL)
+5. Under **Settings → Networking**, click **Generate Domain**. That gives you the public URL — put it back into `CORS_ORIGIN` and redeploy.
+6. In the Firebase console → Authentication → Settings → Authorized domains, add your Railway domain, otherwise Google sign-in will fail.
+
+### Firestore setup
+
+1. Enable Firestore in the [Firebase console](https://console.firebase.google.com) (native mode).
+2. Deploy the security rules:
+   ```bash
+   npm install -g firebase-tools
+   firebase login
+   firebase deploy --only firestore:rules
+   ```
+   The rules in `firestore.rules` restrict reads/writes to the signed-in owner and validate schema.
+
+### Alternative: split deploy (Vercel + Railway)
+
+If you'd rather host the frontend separately (Vercel/Netlify) and only the backend on Railway:
+
+- **Frontend (Vercel):** import repo, set root to `frontend/`, build command `npm run build`, output dir `dist`, add env var `VITE_SOCKET_URL=https://your-backend.up.railway.app`.
+- **Backend (Railway):** same as above but skip the frontend build. Set `CORS_ORIGIN` to your Vercel URL.
+
+## Pushing to GitHub
+
+If you cloned this and want to fork it / push your own version:
 
 ```bash
-# Backend
-cp tiki-topple/backend/.env.example tiki-topple/backend/.env
-
-# Frontend (optional — Vite proxy handles local dev automatically)
-cp tiki-topple/frontend/.env.example tiki-topple/frontend/.env
+git remote set-url origin https://github.com/YOUR_USERNAME/tiki-topple.git
+git add .
+git commit -m "your message"
+git push -u origin main
 ```
 
-### 3. Run in development mode (two servers)
-
-```bash
-# From tiki-topple/ root:
-npm run dev
-```
-
-Or manually in two terminals:
-
-```bash
-# Terminal 1 — backend (nodemon auto-restart)
-cd tiki-topple/backend
-npm run dev
-
-# Terminal 2 — frontend (Vite HMR)
-cd tiki-topple/frontend
-npm run dev
-```
-
-Open **http://localhost:5173** in two or more browser tabs.
-
----
-
-## Production Build & Deploy
-
-### Option A — Single Railway service (recommended)
-
-The frontend builds directly into `backend/public/`. Express serves it in production.
-
-```bash
-# From tiki-topple/ root:
-npm run build   # builds frontend → backend/public/
-npm start       # NODE_ENV=production node backend/server.js
-```
-
-**Railway setup:**
-1. Point root directory to `tiki-topple/`
-2. Build command: `npm run install:all && npm run build`
-3. Start command: `npm start`
-4. Environment variables:
-   - `NODE_ENV=production`
-   - `PORT` — Railway injects automatically
-   - `CORS_ORIGIN` — your public domain (can omit if frontend is served from same origin)
-
-### Option B — Separate services (Railway backend + Vercel frontend)
-
-**Backend (Railway):**
-- Root: `tiki-topple/backend`
-- Start: `npm start`
-- Env vars: `PORT` (auto), `CORS_ORIGIN=https://your-app.vercel.app`
-
-**Frontend (Vercel):**
-- Root: `tiki-topple/frontend`
-- Build: `npm run build`
-- Env vars: `VITE_SOCKET_URL=https://your-backend.up.railway.app`
-
----
-
-## Environment Variables
-
-### Backend (`backend/.env`)
-
-| Variable | Default | Description |
-|---|---|---|
-| `PORT` | `3001` | Server port |
-| `NODE_ENV` | `development` | `production` enables static file serving |
-| `CORS_ORIGIN` | `http://localhost:5173` | Allowed frontend origin |
-
-### Frontend (`frontend/.env`)
-
-| Variable | Default | Description |
-|---|---|---|
-| `VITE_SOCKET_URL` | *(uses Vite proxy)* | Backend WebSocket URL (production only) |
-
----
-
-## How to Play
-
-### Setup
-
-1. One player opens the game, **selects an avatar**, enters a name, and clicks **Create Room**.
-2. Share the 4-letter room code.
-3. Others select an avatar, enter a name, click **Join Room**, enter the code.
-4. Host clicks **Start Game** (requires 2–4 players).
-
-### Goal
-
-Score the most total points across all rounds by getting your **secret target tikis** to the top of the board.
-
-### Secret Tiki Card
-
-Each player receives a hidden card with three tikis. Scores are only revealed at round end.
-
-| Role | Condition | Points |
-|------|-----------|--------|
-| **Top tiki** | At position #1 | **+9 pts** |
-| **Middle tiki** | In top 2 | **+5 pts** |
-| **Bottom tiki** | In top 3 | **+2 pts** |
-
-### On Your Turn
-
-| Card | Effect |
-|------|--------|
-| **Tiki Up 1 / 2 / 3** | Move any tiki exactly 1, 2, or 3 positions up. Must have room. |
-| **Tiki Topple** | Send any tiki (not at bottom) to the very last position. |
-| **Tiki Toast** | Permanently remove the bottom tiki. Not the first card of round; requires 4+ tikis remaining. |
-
-Select a card from your fan, then tap/click the highlighted tiki on the 3D board.
-
-### Round End & Scoring
-
-A round ends when all hands are empty **or** 3 or fewer tikis remain. Secret cards are revealed.
-
-| Players | Total rounds |
-|---------|-------------|
-| 2 | 4 |
-| 3 | 3 |
-| 4 | 4 |
-
----
-
-## Architecture Overview
+## Project structure
 
 ```
 tiki-topple/
 ├── backend/
-│   ├── server.js          — Express + Socket.io, rooms, rate limiting, security
-│   ├── gameEngine.js      — Pure game logic: board algorithms, scoring, lifecycle
-│   ├── public/            — (generated) Production frontend build
-│   └── .env
-└── frontend/
-    └── src/
-        ├── App.jsx                — Screen router with ErrorBoundary + LoadingScreen
-        ├── data/
-        │   └── avatars.js         — 5 SVG avatar definitions
-        ├── components/
-        │   ├── HomeScreen.jsx     — Create / join with AvatarPicker
-        │   ├── AvatarPicker.jsx   — Animated avatar selection cards
-        │   ├── LobbyScreen.jsx    — Waiting room with SVG avatar circles
-        │   ├── GameScreen.jsx     — Main game: board + hand + settings panel
-        │   ├── RoundEndScreen.jsx — Score reveals with card flip animation
-        │   ├── GameOverScreen.jsx — Final leaderboard with confetti
-        │   ├── OpponentArea.jsx   — Opponent avatar with orbit ring
-        │   ├── PlayerHand.jsx     — Fan hand with hover spread + accessibility
-        │   ├── SecretTikiCard.jsx — Secret card widget
-        │   ├── TurnIndicator.jsx  — Your Turn / Waiting banner
-        │   ├── Notifications.jsx  — Toast notification system
-        │   ├── RulesModal.jsx     — In-game help
-        │   ├── LoadingScreen.jsx  — Animated tiki loading screen
-        │   └── ErrorBoundary.jsx  — React error catch with restart
-        ├── three/
-        │   └── TikiBoard.jsx      — Three.js WebGL board with AnimationQueue
-        ├── hooks/
-        │   ├── useSocket.js       — Socket.io with reconnection logic
-        │   └── useSoundEngine.js  — Web Audio API procedural sounds
-        ├── store/
-        │   └── gameStore.js       — Zustand state (game + settings + connection)
-        └── context/
-            └── SocketContext.jsx  — Socket actions via context
+│   ├── server.js          # Express + Socket.io, room/state management
+│   ├── gameEngine.js      # Pure game logic — createGame, playCard, endRound
+│   ├── botEngine.js       # Bot decision logic
+│   └── public/            # Vite build output (generated, gitignored)
+├── frontend/
+│   ├── src/
+│   │   ├── App.jsx        # Screen routing
+│   │   ├── components/    # UI screens + game components
+│   │   ├── hooks/         # useSocket, useSoundEngine
+│   │   ├── store/         # Zustand game state
+│   │   ├── context/       # Socket + Auth providers
+│   │   └── firebase.js    # Firebase config (public)
+│   └── vite.config.js
+├── firestore.rules        # Firestore security rules
+└── package.json           # Monorepo scripts (dev, build, start)
 ```
 
----
+## Things I'd do differently next time
 
-## Tech Stack
+- Split the frontend into more chunks — main bundle is 2MB, not great for first load.
+- Move bot AI into a separate worker so it doesn't share the game loop thread.
+- Write actual tests. There are none. I know. I know.
+- Firebase Admin token verification on the socket layer — right now sockets trust the client-sent user ID, which is fine for a small game but not ideal for anything with rankings/leaderboards.
 
-| Layer | Technology |
-|-------|-----------|
-| Backend runtime | Node.js 18+ |
-| Backend framework | Express 4 |
-| Real-time | Socket.io 4 |
-| Frontend build | Vite 5 + React 18 |
-| 3D graphics | Three.js r164 |
-| Animation | Framer Motion 11 |
-| State | Zustand 4 |
-| Styling | CSS-in-JS inline styles |
-| Fonts | Cinzel Decorative + Crimson Text (Google Fonts) |
-| Audio | Web Audio API (procedural — no audio files) |
+## Credits
 
----
+Game design inspired by the physical Tiki Topple board game. Everything else — code, art direction, sound design — was me learning as I went.
 
-## Security Features
+Built with a lot of coffee and probably too many hours in the browser dev tools.
 
-- **Rate limiting**: max 10 `play_card` events/second per socket (token bucket)
-- **Input sanitization**: all string inputs strip HTML tags, max length enforced
-- **Board validation**: `targetTikiId` verified to be active on the board before processing
-- **Card type validation**: only 5 known types accepted server-side
-- **Privacy boundary**: `allSecretCards` only sent in `round_ended` — never in `state_update`
-- **Per-player views**: `getPlayerView` ensures each player only sees their own secret card
-- **Room cleanup**: rooms deleted 10 min after game over or 5 min after all disconnect
+## License
 
----
-
-## Reconnecting Mid-Game
-
-If a player disconnects mid-game, the game pauses. When they return:
-- Client emits `request_state` automatically on reconnect
-- Server re-associates the new socket with the player's existing ID
-- Game state is restored and game resumes
-
-The reconnection attempts 5 times with exponential backoff (1s → 5s). After 5 failed attempts a "Connection Lost" overlay appears with a Rejoin button.
+MIT — do whatever you want, just don't sue me.

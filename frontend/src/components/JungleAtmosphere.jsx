@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 
 // Premium Dense Jungle Atmosphere - Reference-matched implementation
-export default function JungleAtmosphere() {
+export default function JungleAtmosphere({ hideBackground = false }) {
   const [particles, setParticles] = useState([])
   const [isMobile, setIsMobile] = useState(false)
 
@@ -43,24 +43,26 @@ export default function JungleAtmosphere() {
   return (
     <>
       {/* LAYER 0 — Deep Background Gradient */}
-      <div
-        id="jungle-bg-deep"
-        style={{
-          position: 'absolute',
-          inset: 0,
-          zIndex: 0,
-          background: `
-            radial-gradient(ellipse 28% 45% at 50% 38%, rgba(160, 230, 130, 0.22) 0%, rgba(100, 190, 80, 0.14) 25%, rgba(60, 140, 40, 0.07) 55%, transparent 80%),
-            radial-gradient(ellipse 15% 30% at 52% 25%, rgba(220, 255, 180, 0.18) 0%, transparent 60%),
-            radial-gradient(ellipse 40% 100% at -5% 50%, rgba(2, 12, 4, 0.92) 0%, rgba(5, 20, 8, 0.7) 40%, transparent 70%),
-            radial-gradient(ellipse 40% 100% at 105% 50%, rgba(2, 12, 4, 0.92) 0%, rgba(5, 20, 8, 0.7) 40%, transparent 70%),
-            radial-gradient(ellipse 100% 40% at 50% -10%, rgba(1, 8, 2, 0.95) 0%, transparent 70%),
-            radial-gradient(ellipse 80% 25% at 50% 105%, rgba(90, 70, 15, 0.35) 0%, transparent 60%),
-            linear-gradient(180deg, #020a03 0%, #041008 8%, #071a0c 20%, #0c2a12 38%, #123318 55%, #0e2810 72%, #091a09 88%, #050e05 100%)
-          `,
-          animation: 'jungleBreath 16s ease-in-out infinite',
-        }}
-      />
+      {!hideBackground && (
+        <div
+          id="jungle-bg-deep"
+          style={{
+            position: 'absolute',
+            inset: 0,
+            zIndex: 0,
+            background: `
+              radial-gradient(ellipse 28% 45% at 50% 38%, rgba(160, 230, 130, 0.22) 0%, rgba(100, 190, 80, 0.14) 25%, rgba(60, 140, 40, 0.07) 55%, transparent 80%),
+              radial-gradient(ellipse 15% 30% at 52% 25%, rgba(220, 255, 180, 0.18) 0%, transparent 60%),
+              radial-gradient(ellipse 40% 100% at -5% 50%, rgba(2, 12, 4, 0.92) 0%, rgba(5, 20, 8, 0.7) 40%, transparent 70%),
+              radial-gradient(ellipse 40% 100% at 105% 50%, rgba(2, 12, 4, 0.92) 0%, rgba(5, 20, 8, 0.7) 40%, transparent 70%),
+              radial-gradient(ellipse 100% 40% at 50% -10%, rgba(1, 8, 2, 0.95) 0%, transparent 70%),
+              radial-gradient(ellipse 80% 25% at 50% 105%, rgba(90, 70, 15, 0.35) 0%, transparent 60%),
+              linear-gradient(180deg, #020a03 0%, #041008 8%, #071a0c 20%, #0c2a12 38%, #123318 55%, #0e2810 72%, #091a09 88%, #050e05 100%)
+            `,
+            animation: 'jungleBreath 16s ease-in-out infinite',
+          }}
+        />
+      )}
 
       {/* LAYER 3 — Light Rays */}
       <div

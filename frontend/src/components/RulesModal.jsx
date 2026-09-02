@@ -71,14 +71,16 @@ export default function RulesModal({ onClose }) {
         onClick={e => e.stopPropagation()}
         style={{
           width: '100%', maxWidth: 420,
-          maxHeight: '88vh', overflowY: 'auto',
+          maxHeight: '88vh',
+          // overflowY moved to inner scrollable container below so the shimmer
+          // decorations pin to the panel while the content list scrolls.
           background: 'linear-gradient(168deg, #2c1200 0%, #1c0a00 50%, #0e0500 100%)',
           border: '1.5px solid rgba(212,175,55,0.32)',
           borderRadius: 18,
           boxShadow: '0 0 50px rgba(212,175,55,0.1), 0 24px 70px rgba(0,0,0,0.8)',
-          padding: '22px 22px 20px',
           position: 'relative',
           overflow: 'hidden',
+          display: 'flex', flexDirection: 'column',
         }}
       >
         {/* Background shimmer */}
@@ -96,7 +98,12 @@ export default function RulesModal({ onClose }) {
         <div style={{ position: 'absolute', top: 8, left: 8, width: 16, height: 16, borderTop: '1.5px solid rgba(212,175,55,0.3)', borderLeft: '1.5px solid rgba(212,175,55,0.3)', borderTopLeftRadius: 8 }} />
         <div style={{ position: 'absolute', top: 8, right: 8, width: 16, height: 16, borderTop: '1.5px solid rgba(212,175,55,0.3)', borderRight: '1.5px solid rgba(212,175,55,0.3)', borderTopRightRadius: 8 }} />
 
-        <div style={{ position: 'relative', zIndex: 1 }}>
+        <div style={{
+          position: 'relative', zIndex: 1,
+          padding: '22px 22px 20px',
+          overflowY: 'auto',
+          flex: 1,
+        }}>
           {/* Header */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
             <div>

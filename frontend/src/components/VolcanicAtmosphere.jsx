@@ -15,64 +15,7 @@ export default function VolcanicAtmosphere() {
   const canvasRef = useRef(null)
   const animRef   = useRef(null)
 
-  // ── Canvas lava glow ───────────────────────────────────────────────────────
-  useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext('2d')
-
-    const resize = () => {
-      canvas.width  = window.innerWidth
-      canvas.height = window.innerHeight
-    }
-    resize()
-    window.addEventListener('resize', resize)
-
-    let t = 0
-    const tick = () => {
-      animRef.current = requestAnimationFrame(tick)
-      t += 0.003
-      const w = canvas.width
-      const h = canvas.height
-      ctx.clearRect(0, 0, w, h)
-
-      // Lava glow from below
-      const groundY = h * 0.82 + Math.sin(t * 0.7) * h * 0.018
-      const groundGrad = ctx.createRadialGradient(w * 0.5, groundY, 0, w * 0.5, groundY, w * 0.55)
-      groundGrad.addColorStop(0,   `rgba(220, 40, 5, ${0.14 + Math.sin(t * 1.2) * 0.035})`)
-      groundGrad.addColorStop(0.4, `rgba(140, 20, 3, ${0.07 + Math.sin(t * 1.7) * 0.020})`)
-      groundGrad.addColorStop(1,   'rgba(0,0,0,0)')
-      ctx.fillStyle = groundGrad
-      ctx.fillRect(0, 0, w, h)
-
-      // Torch fire glow — left and right
-      for (const [cx, cy] of [[w * 0.28, h * 0.18], [w * 0.72, h * 0.18]]) {
-        const torchGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, w * 0.26)
-        torchGrad.addColorStop(0,   `rgba(255, 80, 10, ${0.09 + Math.sin(t * 2.2) * 0.030})`)
-        torchGrad.addColorStop(0.5, `rgba(180, 30, 5,  ${0.045 + Math.sin(t * 1.5) * 0.015})`)
-        torchGrad.addColorStop(1,   'rgba(0,0,0,0)')
-        ctx.fillStyle = torchGrad
-        ctx.fillRect(0, 0, w, h)
-      }
-
-      // Slow magma heat bands across center
-      for (let i = 0; i < 2; i++) {
-        const bandY = h * (0.42 + i * 0.24) + Math.sin(t * 0.55 + i * 1.6) * h * 0.030
-        const bandGrad = ctx.createLinearGradient(0, bandY - 60, 0, bandY + 60)
-        bandGrad.addColorStop(0,   'rgba(0,0,0,0)')
-        bandGrad.addColorStop(0.5, `rgba(180, 30, 10, ${0.018 + Math.sin(t + i) * 0.005})`)
-        bandGrad.addColorStop(1,   'rgba(0,0,0,0)')
-        ctx.fillStyle = bandGrad
-        ctx.fillRect(0, bandY - 60, w, 120)
-      }
-    }
-    tick()
-
-    return () => {
-      cancelAnimationFrame(animRef.current)
-      window.removeEventListener('resize', resize)
-    }
-  }, [])
+  // ── Canvas lava glow removed in favor of 3D lava in TikiBoard3D ──
 
   // ── Volcanic ember sparks ──────────────────────────────────────────────────
   useEffect(() => {
@@ -168,15 +111,7 @@ export default function VolcanicAtmosphere() {
         })}
       </div>
 
-      {/* ── Layer 3: Canvas volcanic glow (animated) ── */}
-      <canvas
-        ref={canvasRef}
-        style={{
-          position: 'absolute', inset: 0,
-          width: '100%', height: '100%',
-          zIndex: 3, pointerEvents: 'none',
-        }}
-      />
+      {/* ── Layer 3: Removed ── */}
 
       {/* ── Layer 4: Volcanic ember/ash sparks ── */}
       <div style={{ position: 'absolute', inset: 0, zIndex: 4, overflow: 'hidden', pointerEvents: 'none' }}>

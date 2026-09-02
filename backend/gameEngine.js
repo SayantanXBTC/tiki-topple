@@ -653,7 +653,9 @@ function createGame(players) {
  * @param {string}      playerId
  * @param {string}      cardType
  * @param {string|null} targetTikiId   Required for up* and topple; ignored for toast.
- * @returns {{ error: string|null }}
+ * @returns {{ error: string|null, action?: object }}
+ *   action shape (on success):
+ *     { playerId, cardType, targetTikiId, targetName?, fromPosition?, toPosition?, toastedId?, toastedName? }
  */
 function playCard(gameState, playerId, cardType, targetTikiId) {
   if (gameState.phase !== 'playing') {
@@ -676,6 +678,15 @@ function playCard(gameState, playerId, cardType, targetTikiId) {
   if (!card) {
     return { error: `You have no "${cardType}" card in your hand.` };
   }
+
+  // Snapshot the target tiki's position before the effect so we can describe
+  // the move to clients (e.g. "moved from slot 3 to slot 5").
+  const targetBefore = targetTikiId
+    ? gameState.board.findIndex(t => t.id === targetTikiId)
+    : -1;
+  const targetName = targetTikiId
+    ? (gameState.tikMap.get(targetTikiId)?.name || targetTikiId)
+    : null;
 
   // Apply board effect
   let result;
@@ -703,10 +714,21 @@ function playCard(gameState, playerId, cardType, targetTikiId) {
   hand.delete(card);
   gameState.isFirstCardOfRound = false;
 
+  // Build action descriptor so the socket layer can narrate the move
+  const action = { playerId, cardType, targetTikiId, targetName };
+  if (targetTikiId && targetBefore !== -1) {
+    action.fromPosition = targetBefore + 1;
+    action.toPosition   = gameState.board.findIndex(t => t.id === targetTikiId) + 1;
+  }
+  if (cardType === CARD.TOAST && result?.toastedId) {
+    action.toastedId   = result.toastedId;
+    action.toastedName = gameState.tikMap.get(result.toastedId)?.name || result.toastedId;
+  }
+
   // Advance turn (or transition to round_end) — O(p)
   _advanceTurn(gameState);
 
-  return { error: null };
+  return { error: null, action };
 }
 
 /**

@@ -26,6 +26,11 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Force any orphan canvas / particle container to be transparent so we
+   never see a stray white/gray placeholder rectangle on the game screen. */
+canvas { background: transparent !important; }
+#tsparticles, [id^="tsparticles"] { background: transparent !important; }
+
 /* ── Gold dividers ─────────────────────────────────────────────────────────── */
 
 .gold-divider {

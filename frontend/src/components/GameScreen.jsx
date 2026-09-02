@@ -1,16 +1,44 @@
-import { useMemo, useCallback, useState, memo } from 'react'
+import { useMemo, useCallback, useState, memo, useEffect, useRef, lazy, Suspense } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { toast } from 'sonner'
 import useGameStore from '../store/gameStore'
 import { useSocketContext } from '../context/SocketContext'
 import { useSoundEngine } from '../hooks/useSoundEngine'
 import { AVATAR_MAP } from '../data/avatars'
-import TikiBoard from '../three/TikiBoard'
+import TikiBoard2D from './TikiBoard2D'
 import OpponentArea from './OpponentArea'
 import PlayerHand from './PlayerHand'
 import SecretTikiCard from './SecretTikiCard'
-import TurnIndicator from './TurnIndicator'
 import RulesModal from './RulesModal'
-import VolcanicAtmosphere from './VolcanicAtmosphere'
+import TorchEmbers from './TorchEmbers'
+import ChronicleRail from './ChronicleRail'
+
+// Route-split the r3f island scene to cut initial bundle (~700KB saved)
+const IslandJungleScene = lazy(() => import('./IslandJungleScene'))
+
+// Reduced-motion fallback: static gradient bg + palm silhouettes
+function ReducedMotionBackdrop() {
+  return (
+    <div style={{
+      position: 'absolute', inset: 0, zIndex: 0, pointerEvents: 'none',
+      background: 'linear-gradient(180deg, #030818 0%, #0a1a3c 45%, #123a5c 75%, #1a4d5c 100%)',
+    }} />
+  )
+}
+
+function usePrefersReducedMotion() {
+  const [reduced, setReduced] = useState(() =>
+    typeof window !== 'undefined'
+      && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const onChange = e => setReduced(e.matches)
+    mq.addEventListener?.('change', onChange)
+    return () => mq.removeEventListener?.('change', onChange)
+  }, [])
+  return reduced
+}
 
 // ── Valid target computation ──────────────────────────────────────────────────
 function getValidTargets(card, board) {
@@ -31,16 +59,113 @@ function computeOpponents(players, myPlayerId) {
   const n     = players.length
   const myIdx = players.findIndex(p => p.id === myPlayerId)
   if (myIdx === -1) return []
+  // All opponent cards sit on the left / right rails (never on top) so they
+  // never overlap with the top score-stone arc or the header.
   const slotsByCount = {
     2: ['right'],
-    3: ['top-left', 'top-right'],
-    4: ['top-left', 'top-center', 'top-right'],
+    3: ['left', 'right'],
+    // 4p: one centered on left, two stacked on right — never overlap because
+    // right pair is compact and left is centered.
+    4: ['left', 'right-top', 'right-bottom'],
   }
   const slots = slotsByCount[n] || []
   return slots.map((position, i) => ({
     player:   players[(myIdx + 1 + i) % n],
     position,
   }))
+}
+
+// ── Compact turn chip — lives in the header ───────────────────────────────────
+function TurnChip({ isMyTurn, selectedCard, currentPlayerName, currentPlayerColor }) {
+  const hasCard = !!selectedCard
+
+  if (isMyTurn) {
+    return (
+      <AnimatePresence mode="wait">
+        <motion.div
+          key="my-chip"
+          initial={{ opacity: 0, scale: 0.85, y: -6 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.9, y: 6 }}
+          transition={{ type: 'spring', stiffness: 380, damping: 26 }}
+          style={{ display: 'flex', alignItems: 'center', gap: 8 }}
+        >
+          <motion.div
+            animate={{ boxShadow: ['0 0 0px rgba(212,175,55,0)', '0 0 16px rgba(212,175,55,0.6)', '0 0 0px rgba(212,175,55,0)'] }}
+            transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              background: 'linear-gradient(135deg, rgba(212,175,55,0.22) 0%, rgba(212,175,55,0.08) 100%)',
+              border: '1px solid rgba(212,175,55,0.55)',
+              borderRadius: 20, padding: '4px 14px',
+            }}
+          >
+            <motion.span
+              animate={{ textShadow: ['0 0 6px rgba(212,175,55,0.4)', '0 0 16px rgba(212,175,55,0.95)', '0 0 6px rgba(212,175,55,0.4)'] }}
+              transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
+              style={{
+                color: '#d4af37', fontFamily: '"Cinzel Decorative", cursive',
+                fontSize: 10, fontWeight: 900, letterSpacing: '0.12em',
+              }}
+            >
+              YOUR TURN
+            </motion.span>
+            <div style={{ width: 1, height: 10, background: 'rgba(212,175,55,0.3)' }} />
+            <span style={{
+              color: hasCard ? 'rgba(212,175,55,0.8)' : 'rgba(245,234,208,0.55)',
+              fontSize: 9, fontFamily: '"Cinzel Decorative", cursive', letterSpacing: '0.06em',
+              transition: 'color 0.25s',
+            }}>
+              {hasCard
+                ? (selectedCard.type !== 'toast' ? 'PICK TIKI' : 'TOAST PLAYED')
+                : 'PICK CARD'}
+            </span>
+          </motion.div>
+        </motion.div>
+      </AnimatePresence>
+    )
+  }
+
+  return (
+    <AnimatePresence mode="wait">
+      <motion.div
+        key="wait-chip"
+        initial={{ opacity: 0, scale: 0.85, y: -6 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.9, y: 6 }}
+        transition={{ duration: 0.2 }}
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: 7,
+          background: 'rgba(8,3,0,0.7)',
+          border: `1px solid ${currentPlayerColor || '#888'}30`,
+          borderRadius: 20, padding: '4px 12px',
+        }}
+      >
+        <div style={{
+          width: 6, height: 6, borderRadius: '50%',
+          background: currentPlayerColor || '#888',
+          boxShadow: `0 0 6px ${currentPlayerColor || '#888'}`,
+          flexShrink: 0,
+        }} />
+        <span style={{
+          color: 'rgba(245,234,208,0.58)', fontSize: 9.5,
+          fontFamily: '"Cinzel Decorative", cursive',
+          maxWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          letterSpacing: '0.04em',
+        }}>
+          {currentPlayerName}
+        </span>
+        {[0, 0.2, 0.4].map((d, i) => (
+          <motion.div
+            key={i}
+            animate={{ opacity: [0.2, 1, 0.2], y: [0, -3, 0] }}
+            transition={{ duration: 1, repeat: Infinity, delay: d }}
+            style={{ width: 4, height: 4, borderRadius: '50%', background: currentPlayerColor || '#888', flexShrink: 0 }}
+          />
+        ))}
+      </motion.div>
+    </AnimatePresence>
+  )
 }
 
 // ── Connection dot ────────────────────────────────────────────────────────────
@@ -76,17 +201,24 @@ function ScorePill({ player, isMe }) {
   const avatar = player.avatarId ? AVATAR_MAP[player.avatarId] : null
   return (
     <div style={{
-      display: 'flex', alignItems: 'center', gap: 7,
+      display: 'flex', alignItems: 'center', gap: 8,
       background: isMe
-        ? 'linear-gradient(135deg, rgba(212,175,55,0.16) 0%, rgba(212,175,55,0.08) 100%)'
-        : 'rgba(8,3,0,0.60)',
+        ? 'linear-gradient(135deg, rgba(212,175,55,0.22) 0%, rgba(212,175,55,0.06) 100%)'
+        : 'linear-gradient(135deg, rgba(18,8,2,0.85), rgba(6,2,0,0.9))',
       borderRadius: 999,
-      padding: '4px 13px 4px 5px',
-      border: isMe
-        ? '1.5px solid rgba(212,175,55,0.52)'
-        : `1px solid ${player.color}44`,
-      boxShadow: isMe ? '0 0 14px rgba(212,175,55,0.12)' : 'none',
-      transition: 'border-color 0.3s',
+      padding: '4px 14px 4px 5px',
+      border: '1.5px solid transparent',
+      backgroundImage: isMe
+        ? `linear-gradient(135deg, rgba(212,175,55,0.22), rgba(212,175,55,0.06)),
+           linear-gradient(135deg, #7a5810 0%, #d4af37 22%, #fbe58a 46%, #d4af37 62%, #7a5810 88%, #fbe58a 100%)`
+        : `linear-gradient(135deg, rgba(18,8,2,0.85), rgba(6,2,0,0.9)),
+           linear-gradient(135deg, ${player.color}77, ${player.color}22, ${player.color}77)`,
+      backgroundOrigin: 'border-box',
+      backgroundClip: 'padding-box, border-box',
+      boxShadow: isMe
+        ? '0 0 18px rgba(212,175,55,0.2), inset 0 1px 0 rgba(255,225,140,0.25)'
+        : '0 4px 12px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.06)',
+      transition: 'background-image 0.3s',
     }}>
       {/* Avatar thumbnail */}
       <div style={{
@@ -123,10 +255,13 @@ function ScorePill({ player, isMe }) {
 
       <span style={{
         fontSize: 17, fontWeight: 900,
-        color: '#d4af37',
         fontFamily: '"Cinzel Decorative", cursive',
         minWidth: 22, textAlign: 'right',
         letterSpacing: '-0.01em',
+        background: 'linear-gradient(180deg, #fbe58a 0%, #d4af37 55%, #7a5810 100%)',
+        WebkitBackgroundClip: 'text', backgroundClip: 'text',
+        WebkitTextFillColor: 'transparent',
+        filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.7))',
       }}>
         {player.score}
       </span>
@@ -279,6 +414,55 @@ export default function GameScreen() {
   const sound          = useSoundEngine()
   const [showRules,    setShowRules]    = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [shake,        setShake]        = useState(false)
+  const reducedMotion  = usePrefersReducedMotion()
+
+  // ARIA live announcement — narrates state changes for screen readers
+  const currentPlayerNameForLive = players.find(p => p.id === currentTurnPlayerId)?.name || ''
+  const liveMessage = isMyTurn
+    ? `Your turn. ${selectedCard ? `Card ${selectedCard.type} selected. Choose a tiki.` : 'Pick a card.'}`
+    : `${currentPlayerNameForLive} is playing. Round ${roundNumber} of ${totalRounds}.`
+
+  // Toast notifications for meaningful events
+  const prevRound = useRef(roundNumber)
+  const prevTurnId = useRef(currentTurnPlayerId)
+  useEffect(() => {
+    if (roundNumber !== prevRound.current) {
+      toast(`Round ${roundNumber} of ${totalRounds}`, {
+        description: 'The tikis stir…',
+        duration: 2600,
+      })
+      prevRound.current = roundNumber
+    }
+  }, [roundNumber, totalRounds])
+  useEffect(() => {
+    if (prevTurnId.current && prevTurnId.current !== currentTurnPlayerId) {
+      if (isMyTurn) {
+        // Delay 2.6s so the opponent's card_played narration toast is fully
+        // read before "Your turn" appears. Cancels if turn changes again.
+        const id = setTimeout(() => toast.success('Your turn', { duration: 2000 }), 2600)
+        prevTurnId.current = currentTurnPlayerId
+        return () => clearTimeout(id)
+      }
+    }
+    prevTurnId.current = currentTurnPlayerId
+  }, [currentTurnPlayerId, isMyTurn])
+  useEffect(() => {
+    if (errorMessage) toast.error(errorMessage, { duration: 2400 })
+  }, [errorMessage])
+
+  // Start/stop background ambience based on settings — respects the
+  // Ambient Music toggle in the settings panel + master volume slider.
+  const musicEnabled = useGameStore(s => s.settings.musicEnabled)
+  const masterVolume = useGameStore(s => s.settings.masterVolume)
+  useEffect(() => {
+    if (musicEnabled) sound.startAmbient()
+    else sound.stopAmbient()
+    return () => sound.stopAmbient()
+  }, [sound, musicEnabled])
+  useEffect(() => {
+    sound.setMasterVolume?.(masterVolume)
+  }, [sound, masterVolume])
 
   const opponents    = useMemo(() => computeOpponents(players, myPlayerId), [players, myPlayerId])
   const validTikiIds = useMemo(() => getValidTargets(selectedCard, board), [selectedCard, board])
@@ -290,8 +474,10 @@ export default function GameScreen() {
   const handleCardSelect = useCallback((card) => {
     if (!isMyTurn) return
     if (card.type === 'toast') {
-      sound.play('tiki_move')
+      sound.play('tiki_toast')
       clearSelection()
+      setShake(true)
+      setTimeout(() => setShake(false), 500)
       playCard('toast', null)
     } else {
       sound.play('tiki_move')
@@ -301,16 +487,26 @@ export default function GameScreen() {
 
   const handleTikiClick = useCallback((tikId) => {
     if (!selectedCard) return
-    sound.play('tiki_move')
+    if (selectedCard.type === 'topple') {
+      sound.play('tiki_topple')
+      setShake(true)
+      setTimeout(() => setShake(false), 500)
+    } else if (selectedCard.type.startsWith('up')) {
+      sound.play('tiki_push')
+    } else {
+      sound.play('tiki_move')
+    }
     playCard(selectedCard.type, tikId)
     clearSelection()
   }, [selectedCard, playCard, clearSelection, sound])
 
   function opponentStyle(position) {
-    if (position === 'right')      return { top: '50%', right: 12, transform: 'translateY(-50%)' }
-    if (position === 'top-left')   return { top: 14, left: 12 }
-    if (position === 'top-center') return { top: 14, left: '50%', transform: 'translateX(-50%)' }
-    if (position === 'top-right')  return { top: 14, right: 12 }
+    if (position === 'right')        return { top: '50%', right: 12, transform: 'translateY(-50%)' }
+    if (position === 'left')         return { top: '50%', left: 12,  transform: 'translateY(-50%)' }
+    if (position === 'left-top')     return { top: 120,   left: 12 }
+    if (position === 'left-bottom')  return { bottom: 300,left: 12 }
+    if (position === 'right-top')    return { top: 120,   right: 12 }
+    if (position === 'right-bottom') return { bottom: 300,right: 12 }
     return {}
   }
 
@@ -320,61 +516,127 @@ export default function GameScreen() {
       display: 'flex', flexDirection: 'column',
       userSelect: 'none', WebkitUserSelect: 'none',
       touchAction: 'none', overflow: 'hidden',
+      // Solid dark base so any semi-transparent overlays never reveal a
+      // white default-canvas flash above/around the scene.
+      background: '#02040a',
     }}>
-      <VolcanicAtmosphere />
+      {reducedMotion
+        ? <ReducedMotionBackdrop />
+        : (
+          <Suspense fallback={<ReducedMotionBackdrop />}>
+            <IslandJungleScene />
+          </Suspense>
+        )
+      }
+      <TorchEmbers />
 
-      {/* ── Header ──────────────────────────────────────────────────────── */}
+      {/* Campfire glow overlay */}
       <div style={{
-        height: 'clamp(50px, 5.8vh, 62px)',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '0 14px',
-        background: 'linear-gradient(180deg, rgba(8,3,0,0.96) 0%, rgba(6,2,0,0.92) 100%)',
-        backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
-        borderBottom: '1px solid rgba(212,175,55,0.18)',
+        position: 'absolute', inset: 0, zIndex: 1, pointerEvents: 'none',
+        background: 'radial-gradient(circle at 50% 120%, rgba(255,100,20,0.15) 0%, transparent 60%)',
+      }} />
+
+      {/* ── Header — 2 rows: scores+round+btns / turn chip ──────────────── */}
+      <div style={{
         flexShrink: 0, zIndex: 30, position: 'relative',
+        // Fully opaque so the r3f canvas behind can never bleed a pale
+        // rectangle through translucent header regions.
+        background: 'linear-gradient(180deg, #060300 0%, #0a0501 100%)',
+        borderBottom: '1.5px solid rgba(212,175,55,0.38)',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.55)',
       }}>
-        {/* Left: connection + score pills */}
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'nowrap', overflow: 'hidden', flex: 1 }}>
-          <ConnectionDot status={connectionStatus} />
-          {players.map(p => (
-            <ScorePill key={p.id} player={p} isMe={p.id === myPlayerId} />
-          ))}
+        {/* Row 1: scores + round + buttons */}
+        <div style={{
+          height: 'clamp(50px, 5.8vh, 60px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '0 14px',
+        }}>
+          {/* Left: connection + score pills */}
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'nowrap', overflow: 'hidden', flex: 1 }}>
+            <ConnectionDot status={connectionStatus} />
+            {players.map(p => (
+              <ScorePill key={p.id} player={p} isMe={p.id === myPlayerId} />
+            ))}
+          </div>
+
+          {/* Center: Round counter */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, padding: '0 12px' }}>
+            <span style={{
+              fontFamily: '"Cinzel Decorative", cursive',
+              fontSize: 'clamp(7px, 0.85vw, 10px)',
+              color: 'rgba(212,175,55,0.5)', letterSpacing: '0.18em', lineHeight: 1,
+            }}>ROUND</span>
+            <span style={{
+              fontFamily: '"Cinzel Decorative", cursive',
+              fontSize: 'clamp(12px, 1.3vw, 16px)',
+              fontWeight: 900, letterSpacing: '0.04em',
+              lineHeight: 1.1, whiteSpace: 'nowrap',
+              background: 'linear-gradient(180deg, #fbe58a 0%, #d4af37 55%, #7a5810 100%)',
+              WebkitBackgroundClip: 'text', backgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              filter: 'drop-shadow(0 0 10px rgba(212,175,55,0.5))',
+            }}>
+              {roundNumber} <span style={{ opacity: 0.4, fontWeight: 400, fontSize: '0.7em' }}>/ {totalRounds}</span>
+            </span>
+          </div>
+
+          {/* Right: action buttons */}
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+            <motion.button
+              whileHover={{ scale: 1.12 }} whileTap={{ scale: 0.9 }}
+              onClick={() => setShowRules(true)} aria-label="View game rules"
+              style={{
+                background: 'radial-gradient(circle at 30% 25%, #fbe58a 0%, #d4af37 40%, #7a5810 100%)',
+                border: '1.5px solid #4a3208',
+                borderRadius: '50%', width: 36, height: 36,
+                color: '#1a0a00', fontSize: 15,
+                fontFamily: '"Cinzel Decorative", cursive', fontWeight: 900,
+                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 4px 14px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.45), inset 0 -2px 4px rgba(0,0,0,0.3)',
+                textShadow: '0 1px 0 rgba(255,225,140,0.5)',
+              }}
+            >?</motion.button>
+            <motion.button
+              whileHover={{ scale: 1.12, rotate: 30 }} whileTap={{ scale: 0.9 }}
+              onClick={() => setShowSettings(true)} aria-label="Open settings"
+              style={{
+                background: 'radial-gradient(circle at 30% 25%, #d4af37 0%, #8a6614 45%, #4a3208 100%)',
+                border: '1.5px solid #2a1c04',
+                borderRadius: '50%', width: 36, height: 36,
+                color: '#1a0a00', fontSize: 15,
+                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 4px 14px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,225,140,0.35), inset 0 -2px 4px rgba(0,0,0,0.35)',
+              }}
+            >⚙</motion.button>
+          </div>
         </div>
 
-        {/* Center: Round counter */}
+        {/* Row 2: compact turn chip — fully opaque so the r3f canvas
+            behind the header never bleeds through as a pale rectangle. */}
         <div style={{
-          display: 'flex', flexDirection: 'column', alignItems: 'center',
-          flexShrink: 0, padding: '0 12px',
+          height: 32,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          borderTop: '1px solid rgba(212,175,55,0.12)',
+          background: '#080401',
         }}>
-          <span style={{
-            fontFamily: '"Cinzel Decorative", cursive',
-            fontSize: 'clamp(8px, 0.9vw, 11px)',
-            color: 'rgba(212,175,55,0.55)',
-            letterSpacing: '0.18em',
-            lineHeight: 1,
-          }}>
-            ROUND
-          </span>
-          <span style={{
-            fontFamily: '"Cinzel Decorative", cursive',
-            fontSize: 'clamp(13px, 1.4vw, 17px)',
-            color: '#d4af37',
-            fontWeight: 900,
-            letterSpacing: '0.04em',
-            textShadow: '0 0 12px rgba(212,175,55,0.4)',
-            lineHeight: 1.1,
-            whiteSpace: 'nowrap',
-          }}>
-            {roundNumber} <span style={{ opacity: 0.4, fontWeight: 400, fontSize: '0.7em' }}>/ {totalRounds}</span>
-          </span>
+          <TurnChip
+            isMyTurn={isMyTurn}
+            selectedCard={selectedCard}
+            currentPlayerName={currentPlayerName}
+            currentPlayerColor={currentPlayerColor}
+          />
         </div>
       </div>
 
       {/* ── Game area ───────────────────────────────────────────────────── */}
-      <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-        {/* 3D Board */}
-        <div style={{ position: 'absolute', inset: 0, zIndex: 4 }}>
-          <TikiBoard
+      <motion.div 
+        animate={shake ? { x: [-8, 8, -6, 6, -3, 3, 0], y: [-4, 4, -3, 3, 0] } : { x: 0, y: 0 }}
+        transition={{ duration: 0.5, ease: 'easeOut' }}
+        style={{ flex: 1, position: 'relative', overflow: 'hidden', zIndex: 2 }}
+      >
+        {/* 3D Board — full screen, cards/secret tiki overlay on top */}
+        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 4 }}>
+          <TikiBoard2D
             board={board}
             players={players}
             isMyTurn={isMyTurn}
@@ -385,71 +647,43 @@ export default function GameScreen() {
           />
         </div>
 
-        {/* Opponent pods */}
-        {opponents.map(({ player, position }) => (
-          <div
-            key={player.id}
-            style={{ position: 'absolute', zIndex: 10, ...opponentStyle(position) }}
-          >
-            <OpponentArea
-              player={player}
-              position={position}
-              cardCount={player.cardsRemaining ?? 0}
-            />
-          </div>
-        ))}
+        {/* Chronicle rail disabled — opponents now live on both left+right rails
+            so right side is no longer empty. Sonner narration + header round
+            counter cover the same intent. */}
 
-        {/* Turn indicator */}
-        <div style={{
-          position: 'absolute', bottom: 14, left: 0, right: 0,
-          display: 'flex', justifyContent: 'center',
-          zIndex: 15, pointerEvents: 'none',
-        }}>
-          <TurnIndicator
-            isMyTurn={isMyTurn}
-            selectedCard={selectedCard}
-            currentPlayerName={currentPlayerName}
-            currentPlayerColor={currentPlayerColor}
-          />
-        </div>
+        {/* Opponent pods — grouped into left/right rails w/ flex column so
+            multiple cards on the same rail can never overlap regardless of
+            viewport height. Rail centers vertically; cards space out evenly. */}
+        {(() => {
+          const leftPods  = opponents.filter(o => o.position.startsWith('left'))
+          const rightPods = opponents.filter(o => o.position.startsWith('right'))
+          const Rail = ({ side, pods }) => pods.length ? (
+            <div style={{
+              position: 'absolute',
+              [side]: 12,
+              top: 120,
+              bottom: 280,
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: pods.length === 1 ? 'center' : 'space-between',
+              gap: 12,
+              zIndex: 10,
+              pointerEvents: 'none',
+            }}>
+              {pods.map(({ player, position }) => (
+                <div key={player.id} style={{ pointerEvents: 'auto' }}>
+                  <OpponentArea
+                    player={player}
+                    position={position}
+                    cardCount={player.cardsRemaining ?? 0}
+                  />
+                </div>
+              ))}
+            </div>
+          ) : null
+          return <><Rail side="left" pods={leftPods} /><Rail side="right" pods={rightPods} /></>
+        })()}
 
-        {/* FAB buttons — right side, properly stacked */}
-        <div style={{
-          position: 'absolute', right: 14, bottom: 14,
-          display: 'flex', flexDirection: 'column', gap: 8,
-          zIndex: 20,
-        }}>
-          {/* Rules button */}
-          <motion.button
-            whileHover={{ scale: 1.12 }} whileTap={{ scale: 0.9 }}
-            onClick={() => setShowRules(true)} aria-label="View game rules"
-            style={{
-              background: 'linear-gradient(145deg, rgba(212,175,55,0.18) 0%, rgba(212,175,55,0.08) 100%)',
-              border: '1.5px solid rgba(212,175,55,0.48)',
-              borderRadius: '50%', width: 40, height: 40,
-              color: '#d4af37', fontSize: 17,
-              fontFamily: '"Cinzel Decorative", cursive', fontWeight: 900,
-              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 4px 14px rgba(0,0,0,0.55)',
-              backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
-            }}
-          >?</motion.button>
-
-          {/* Settings button */}
-          <motion.button
-            whileHover={{ scale: 1.12, rotate: 30 }} whileTap={{ scale: 0.9 }}
-            onClick={() => setShowSettings(true)} aria-label="Open settings"
-            style={{
-              background: 'linear-gradient(145deg, rgba(212,175,55,0.12) 0%, rgba(212,175,55,0.05) 100%)',
-              border: '1.5px solid rgba(212,175,55,0.32)',
-              borderRadius: '50%', width: 40, height: 40,
-              color: 'rgba(212,175,55,0.7)', fontSize: 17,
-              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 4px 14px rgba(0,0,0,0.55)',
-              backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
-            }}
-          >⚙</motion.button>
-        </div>
 
         {/* Connection lost overlay */}
         <AnimatePresence>
@@ -524,29 +758,42 @@ export default function GameScreen() {
             </motion.div>
           )}
         </AnimatePresence>
-      </div>
+      </motion.div>
 
-      {/* ── Bottom tray — secret card + hand ────────────────────────────── */}
+      {/* Header turn chip already conveys action ("YOUR TURN | PICK CARD");
+          the standalone footer bar was removed to prevent overlap with the
+          long totem board that extends nearly to the card tray. */}
+
+      {/* ── Bottom tray — fixed at viewport bottom ──────────────────── */}
       <div style={{
-        height: 'clamp(170px, 19vh, 210px)',
-        position: 'relative',
-        flexShrink: 0,
+        position: 'fixed',
+        bottom: 0, left: 0, right: 0,
+        height: 240,
         zIndex: 20,
-        background: 'linear-gradient(0deg, rgba(5,1,0,0.99) 0%, rgba(7,2,0,0.88) 45%, rgba(10,3,0,0.55) 75%, transparent 100%)',
-        borderTop: '1px solid rgba(212,175,55,0.11)',
+        pointerEvents: 'none',
+        overflow: 'visible',
       }}>
+        {/* Dark gradient base */}
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: 'linear-gradient(0deg, rgba(6,1,0,0.92) 0%, rgba(6,1,0,0.55) 55%, transparent 100%)',
+          pointerEvents: 'none',
+        }} />
+
         {/* Secret tiki card — bottom-left */}
-        <div style={{ position: 'absolute', left: 12, bottom: 12 }}>
+        <div style={{ position: 'absolute', left: 12, bottom: 10, pointerEvents: 'auto', zIndex: 5 }}>
           <SecretTikiCard secretCard={mySecretCard} />
         </div>
 
         {/* Player hand — centered */}
-        <PlayerHand
-          hand={myHand}
-          selectedCard={selectedCard}
-          onCardSelect={handleCardSelect}
-          isMyTurn={isMyTurn}
-        />
+        <div style={{ position: 'absolute', inset: 0, pointerEvents: 'auto', zIndex: 10 }}>
+          <PlayerHand
+            hand={myHand}
+            selectedCard={selectedCard}
+            onCardSelect={handleCardSelect}
+            isMyTurn={isMyTurn}
+          />
+        </div>
       </div>
 
       <AnimatePresence>
@@ -555,6 +802,21 @@ export default function GameScreen() {
       <AnimatePresence>
         {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} />}
       </AnimatePresence>
+
+      {/* Screen-reader live region — narrates state changes */}
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        style={{
+          position: 'absolute', width: 1, height: 1, padding: 0, margin: -1,
+          overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap', border: 0,
+        }}
+      >
+        {liveMessage}
+      </div>
+
+      {/* Toaster is mounted globally in App.jsx — no duplicate here */}
     </div>
   )
 }

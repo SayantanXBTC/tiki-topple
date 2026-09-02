@@ -1,5 +1,8 @@
 import { motion } from 'framer-motion'
+import { useEffect } from 'react'
 import useGameStore from '../store/gameStore'
+import { useAuth } from '../context/AuthContext'
+import { saveGameResult } from '../utils/profileStats'
 
 const MEDALS = ['🥇', '🥈', '🥉']
 
@@ -133,7 +136,15 @@ function LeaderboardRow({ player, rank, delay }) {
 // ── GameOverScreen ────────────────────────────────────────────────────────────
 
 export default function GameOverScreen() {
-  const { gameOverData, resetGame } = useGameStore()
+  const { gameOverData, resetGame, myPlayerId, setScreen } = useGameStore()
+  const { user } = useAuth()
+
+  // Save game result to profile stats once on mount
+  useEffect(() => {
+    if (user?.uid && gameOverData?.finalScores && myPlayerId) {
+      saveGameResult(user.uid, { myPlayerId, finalScores: gameOverData.finalScores })
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!gameOverData) return null
 
@@ -290,27 +301,50 @@ export default function GameOverScreen() {
           transition={{ delay: 1.0 }}
           style={{ width: '100%' }}
         >
-          <motion.button
-            whileHover={{ scale: 1.03, boxShadow: '0 0 28px rgba(212,175,55,0.5)' }}
-            whileTap={{ scale: 0.97 }}
-            onClick={resetGame}
-            style={{
-              width: '100%',
-              background: 'linear-gradient(145deg, #4d2a0a, #3d1f0a)',
-              border: '2px solid #d4af37',
-              borderRadius: 10,
-              color: '#d4af37',
-              padding: '16px',
-              fontSize: 14,
-              fontFamily: '"Cinzel Decorative", cursive',
-              fontWeight: 700,
-              letterSpacing: '0.12em',
-              cursor: 'pointer',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.4), inset 0 1px 0 rgba(212,175,55,0.2)',
-            }}
-          >
-            ↺ Play Again
-          </motion.button>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <motion.button
+              whileHover={{ scale: 1.03, boxShadow: '0 0 28px rgba(212,175,55,0.5)' }}
+              whileTap={{ scale: 0.97 }}
+              onClick={resetGame}
+              style={{
+                flex: 1,
+                background: 'linear-gradient(145deg, #4d2a0a, #3d1f0a)',
+                border: '2px solid #d4af37',
+                borderRadius: 10,
+                color: '#d4af37',
+                padding: '16px',
+                fontSize: 14,
+                fontFamily: '"Cinzel Decorative", cursive',
+                fontWeight: 700,
+                letterSpacing: '0.12em',
+                cursor: 'pointer',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.4), inset 0 1px 0 rgba(212,175,55,0.2)',
+              }}
+            >
+              ↺ Play Again
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.03, boxShadow: '0 0 20px rgba(212,175,55,0.25)' }}
+              whileTap={{ scale: 0.97 }}
+              onClick={() => { resetGame(); setTimeout(() => setScreen('profile'), 50) }}
+              style={{
+                background: 'rgba(212,175,55,0.08)',
+                border: '1.5px solid rgba(212,175,55,0.4)',
+                borderRadius: 10,
+                color: 'rgba(212,175,55,0.75)',
+                padding: '16px 18px',
+                fontSize: 12,
+                fontFamily: '"Cinzel Decorative", cursive',
+                fontWeight: 700,
+                letterSpacing: '0.08em',
+                cursor: 'pointer',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              ✦ Profile
+            </motion.button>
+          </div>
         </motion.div>
 
       </div>

@@ -2,18 +2,7 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import useGameStore from '../store/gameStore'
 import { useSocketContext } from '../context/SocketContext'
-
-const TIKI_LOOKUP = {
-  hookipa: { name: 'Hookipa', color: '#8a8a8a' },
-  lani:    { name: 'Lani',    color: '#7b2fbe' },
-  kai:     { name: 'Kai',     color: '#c0392b' },
-  malu:    { name: 'Malu',    color: '#e91e8c' },
-  nalu:    { name: 'Nalu',    color: '#f39c12' },
-  pele:    { name: 'Pele',    color: '#e67e22' },
-  honu:    { name: 'Honu',    color: '#27ae60' },
-  mana:    { name: 'Mana',    color: '#2980b9' },
-  koa:     { name: 'Koa',     color: '#795548' },
-}
+import { TIKI_COLORS as TIKI_LOOKUP } from '../data/tikaColors'
 
 // ── Animated score counter ───────────────────────────────────────────────────
 

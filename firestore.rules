@@ -1,0 +1,56 @@
+rules_version = '2';
+
+// Tiki Topple — Firestore security rules
+//
+// Data model:
+//   /profiles/{uid}
+//     - gamesPlayed:  number
+//     - wins:         number
+//     - totalScore:   number
+//     - highScore:    number
+//     - recentGames:  array (capped at 10 in client)
+//     - updatedAt:    serverTimestamp
+//
+// Auth model:
+//   - Only the owner of the doc (matching auth uid) can read or write it.
+//   - Anonymous / signed-out requests are rejected.
+//   - No listing / no cross-user reads. Profile is private by default.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Profile stats — per-user private doc ─────────────────────────────
+    match /profiles/{uid} {
+      // Only the authenticated owner can read their own stats
+      allow read: if request.auth != null && request.auth.uid == uid;
+
+      // Write allowed only for the owner and only for the expected shape.
+      // Reject junk fields, guard type + range so a malicious client can't
+      // upload a 5MB blob or set win rate = 999.
+      allow create, update: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly([
+             'gamesPlayed', 'wins', 'totalScore', 'highScore',
+             'recentGames', 'updatedAt'
+           ])
+        && request.resource.data.gamesPlayed is int
+        && request.resource.data.gamesPlayed >= 0
+        && request.resource.data.gamesPlayed <= 100000
+        && request.resource.data.wins is int
+        && request.resource.data.wins >= 0
+        && request.resource.data.wins <= request.resource.data.gamesPlayed
+        && request.resource.data.totalScore is int
+        && request.resource.data.highScore is int
+        && request.resource.data.recentGames is list
+        && request.resource.data.recentGames.size() <= 10;
+
+      // No deletes — history is append-only from the client's perspective.
+      allow delete: if false;
+    }
+
+    // ── Default deny — everything else is off-limits ─────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

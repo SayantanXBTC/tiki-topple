@@ -14,9 +14,9 @@ export default function AvatarCarousel({ selectedId, onSelect }) {
   const animationFrameRef = useRef(null)
   const autoRotateTimeoutRef = useRef(null)
 
-  const radius = 280 // Distance from center
+  const radius = 165
   const anglePerItem = 360 / AVATARS.length
-  const autoRotateSpeed = 0.15 // Degrees per frame
+  const autoRotateSpeed = 0.14
 
   // Auto-rotation when not interacting
   useEffect(() => {
@@ -130,6 +130,21 @@ export default function AvatarCarousel({ selectedId, onSelect }) {
         )}
       </div>
 
+      {/* Center platform glow */}
+      <div style={{
+        position: 'absolute',
+        bottom: 12,
+        left: '50%',
+        transform: 'translateX(-50%)',
+        width: 120,
+        height: 18,
+        borderRadius: '50%',
+        background: 'radial-gradient(ellipse, rgba(212,175,55,0.35) 0%, rgba(212,175,55,0.08) 60%, transparent 100%)',
+        filter: 'blur(6px)',
+        pointerEvents: 'none',
+        zIndex: 2,
+      }} />
+
       {/* 3D Carousel Container */}
       <div
         onMouseDown={handleDragStart}
@@ -142,8 +157,8 @@ export default function AvatarCarousel({ selectedId, onSelect }) {
         style={{
           position: 'relative',
           width: '100%',
-          height: 240,
-          perspective: '1200px',
+          height: 252,
+          perspective: '1100px',
           cursor: isDragging ? 'grabbing' : 'grab',
           userSelect: 'none',
           WebkitUserSelect: 'none',
@@ -156,7 +171,7 @@ export default function AvatarCarousel({ selectedId, onSelect }) {
             height: '100%',
             transformStyle: 'preserve-3d',
             transform: `rotateY(${rotation}deg)`,
-            transition: isDragging ? 'none' : 'transform 0.3s ease-out',
+            transition: isDragging ? 'none' : 'transform 0.35s cubic-bezier(0.25,0.46,0.45,0.94)',
           }}
         >
           {AVATARS.map((avatar, i) => {
@@ -164,12 +179,11 @@ export default function AvatarCarousel({ selectedId, onSelect }) {
             const totalRotation = rotation % 360
             const relativeAngle = (itemAngle + totalRotation + 360) % 360
             const normalizedAngle = Math.abs(relativeAngle > 180 ? 360 - relativeAngle : relativeAngle)
-            
-            // Calculate opacity and scale based on position
-            const opacity = Math.max(0.3, 1 - (normalizedAngle / 180))
-            const scale = Math.max(0.7, 1 - (normalizedAngle / 360))
+
+            const opacity = Math.max(0.28, 1 - (normalizedAngle / 175))
+            const scale  = Math.max(0.72, 1 - (normalizedAngle / 355))
             const isSelected = selectedId === avatar.id
-            const isFront = normalizedAngle < 30
+            const isFront = normalizedAngle < 32
 
             return (
               <div
@@ -177,107 +191,117 @@ export default function AvatarCarousel({ selectedId, onSelect }) {
                 onClick={() => handleAvatarClick(avatar, i)}
                 style={{
                   position: 'absolute',
-                  width: 110,
-                  height: 150,
+                  width: 118,
+                  height: 162,
                   left: '50%',
                   top: '50%',
-                  marginLeft: -55,
-                  marginTop: -75,
+                  marginLeft: -59,
+                  marginTop: -81,
                   transform: `rotateY(${itemAngle}deg) translateZ(${radius}px)`,
-                  opacity: opacity,
-                  transition: 'opacity 0.3s linear',
+                  opacity,
+                  transition: 'opacity 0.28s linear',
                   cursor: 'pointer',
                   pointerEvents: isFront ? 'auto' : 'none',
                 }}
               >
                 <motion.div
                   animate={{
-                    scale: isSelected ? 1.15 : scale,
-                    y: isSelected ? -10 : 0,
+                    scale: isSelected ? 1.16 : scale,
+                    y: isSelected ? -12 : 0,
                   }}
-                  transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+                  transition={{ type: 'spring', stiffness: 320, damping: 22 }}
                   style={{
                     width: '100%',
                     height: '100%',
-                    borderRadius: 12,
-                    overflow: 'hidden',
-                    background: `
-                      linear-gradient(145deg, 
-                        ${isSelected ? '#D4A574' : '#A67C52'} 0%, 
-                        ${isSelected ? '#C19A6B' : '#8B6F47'} 50%, 
-                        ${isSelected ? '#A67C52' : '#6B5344'} 100%)
-                    `,
-                    boxShadow: isSelected
-                      ? `
-                        inset 0 4px 8px rgba(255,255,255,0.3),
-                        inset 0 -4px 8px rgba(0,0,0,0.3),
-                        0 0 30px rgba(255,215,0,0.6),
-                        0 10px 40px rgba(0,0,0,0.5)
-                      `
-                      : `
-                        inset 0 2px 4px rgba(255,255,255,0.2),
-                        inset 0 -2px 4px rgba(0,0,0,0.4),
-                        0 8px 20px rgba(0,0,0,0.4)
-                      `,
-                    border: isSelected ? '3px solid #FFD700' : '2px solid #6B5344',
+                    borderRadius: 14,
+                    overflow: 'visible',
                     position: 'relative',
                   }}
                 >
-                  {/* Avatar SVG */}
-                  <div
-                    dangerouslySetInnerHTML={{ __html: avatar.svg }}
-                    style={{
-                      position: 'absolute',
-                      top: 8,
-                      left: 8,
-                      right: 8,
-                      height: 100,
-                      overflow: 'hidden',
-                      borderRadius: 8,
-                      filter: isSelected ? 'none' : 'saturate(0.7) brightness(0.9)',
-                    }}
-                  />
-
-                  {/* Name label */}
+                  {/* Card body — premium metallic gold frame */}
                   <div style={{
-                    position: 'absolute',
-                    bottom: 8,
-                    left: 0,
-                    right: 0,
-                    textAlign: 'center',
-                    padding: '4px 8px',
-                    background: 'rgba(0,0,0,0.5)',
-                    backdropFilter: 'blur(4px)',
+                    width: '100%',
+                    height: '100%',
+                    borderRadius: 14,
+                    overflow: 'hidden',
+                    background: isSelected
+                      ? 'linear-gradient(158deg, #E8C97A 0%, #C9A450 22%, #A87C30 52%, #8A6018 82%, #6A4808 100%)'
+                      : 'linear-gradient(158deg, #B08848 0%, #90682A 28%, #70500A 58%, #503800 88%, #382400 100%)',
+                    boxShadow: isSelected
+                      ? '0 0 0 3px #FFD700, 0 0 30px rgba(255,215,0,0.75), 0 0 60px rgba(212,175,55,0.35), 0 18px 44px rgba(0,0,0,0.7), inset 0 3px 8px rgba(255,235,140,0.35), inset 0 -3px 8px rgba(0,0,0,0.35)'
+                      : '0 0 0 1.5px rgba(160,120,40,0.5), 0 10px 26px rgba(0,0,0,0.55), inset 0 1px 3px rgba(255,220,100,0.14), inset 0 -3px 8px rgba(0,0,0,0.3)',
+                    border: 'none',
+                    position: 'relative',
                   }}>
+                    {/* Corner filigree ornaments (selected only) */}
+                    {isSelected && [
+                      { pos: { top: 3, left: 3 },  b: { borderTop: '1.5px solid #FFD700', borderLeft: '1.5px solid #FFD700' } },
+                      { pos: { top: 3, right: 3 }, b: { borderTop: '1.5px solid #FFD700', borderRight: '1.5px solid #FFD700' } },
+                      { pos: { bottom: 3, left: 3 },  b: { borderBottom: '1.5px solid #FFD700', borderLeft: '1.5px solid #FFD700' } },
+                      { pos: { bottom: 3, right: 3 }, b: { borderBottom: '1.5px solid #FFD700', borderRight: '1.5px solid #FFD700' } },
+                    ].map((c, i) => (
+                      <div key={i} style={{
+                        position: 'absolute', width: 10, height: 10, opacity: 0.85, zIndex: 3,
+                        ...c.pos, ...c.b,
+                      }} />
+                    ))}
+                    {/* Grain texture overlay */}
                     <div style={{
-                      fontFamily: '"Cinzel Decorative", cursive',
-                      fontSize: isSelected ? 11 : 9,
-                      color: isSelected ? '#FFD700' : '#F5DEB3',
-                      letterSpacing: '0.04em',
-                      fontWeight: isSelected ? 700 : 400,
-                      textShadow: isSelected ? '0 0 8px rgba(255,215,0,0.6)' : 'none',
+                      position: 'absolute', inset: 0, borderRadius: 14, pointerEvents: 'none',
+                      backgroundImage: 'repeating-linear-gradient(158deg, rgba(0,0,0,0.06) 0px, rgba(0,0,0,0.06) 1px, transparent 1px, transparent 3px)',
+                    }} />
+                    {/* Top shimmer line */}
+                    <div style={{
+                      position: 'absolute', top: 0, left: '15%', right: '15%',
+                      height: 1, background: 'linear-gradient(90deg, transparent, rgba(255,220,100,0.55), transparent)',
+                      pointerEvents: 'none',
+                    }} />
+
+                    {/* Avatar SVG */}
+                    <div
+                      dangerouslySetInnerHTML={{ __html: avatar.svg }}
+                      style={{
+                        position: 'absolute',
+                        top: 10, left: 9, right: 9,
+                        height: 112,
+                        overflow: 'hidden',
+                        borderRadius: 9,
+                        filter: isSelected ? 'none' : 'saturate(0.72) brightness(0.88)',
+                        transition: 'filter 0.25s ease',
+                      }}
+                    />
+
+                    {/* Name label */}
+                    <div style={{
+                      position: 'absolute', bottom: 0, left: 0, right: 0,
+                      padding: '8px 6px 10px',
+                      background: 'linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.72) 100%)',
+                      textAlign: 'center',
                     }}>
-                      {avatar.name}
+                      <div style={{
+                        fontFamily: '"Cinzel Decorative", cursive',
+                        fontSize: isSelected ? 11.5 : 9.5,
+                        color: isSelected ? '#FFD700' : '#D2A94A',
+                        letterSpacing: '0.08em',
+                        fontWeight: 700,
+                        textShadow: isSelected ? '0 0 10px rgba(255,215,0,0.7), 0 1px 3px rgba(0,0,0,0.9)' : '0 1px 3px rgba(0,0,0,0.9)',
+                        transition: 'font-size 0.2s ease, color 0.2s ease',
+                      }}>
+                        {avatar.name}
+                      </div>
                     </div>
                   </div>
 
-                  {/* Selection glow */}
+                  {/* Selection outer glow ring */}
                   {isSelected && (
                     <motion.div
-                      animate={{
-                        opacity: [0.5, 1, 0.5],
-                      }}
-                      transition={{
-                        duration: 2,
-                        repeat: Infinity,
-                        ease: 'easeInOut',
-                      }}
+                      animate={{ opacity: [0.55, 1, 0.55] }}
+                      transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
                       style={{
                         position: 'absolute',
-                        inset: -4,
-                        borderRadius: 14,
-                        border: '2px solid #FFD700',
-                        boxShadow: '0 0 20px rgba(255,215,0,0.8)',
+                        inset: -5, borderRadius: 17,
+                        border: '2px solid rgba(255,215,0,0.9)',
+                        boxShadow: '0 0 18px rgba(255,215,0,0.7), 0 0 36px rgba(212,175,55,0.35)',
                         pointerEvents: 'none',
                       }}
                     />
