@@ -21,7 +21,7 @@
     "react-dom": "^18.3.1",
     "socket.io-client": "^4.7.2",
     "sonner": "^2.0.8",
-    "three": "^0.162.0",
+    "three": "~0.184.0",
     "zustand": "^4.5.0"
   },
   "devDependencies": {
