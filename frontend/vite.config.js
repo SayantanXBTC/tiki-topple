@@ -14,8 +14,10 @@ export default defineConfig({
     },
   },
   build: {
-    // Production: output into backend/public so a single Railway service can serve both
-    outDir: '../backend/public',
+    // Vercel/Netlify/split deploys: build to local `dist` (their expected dir).
+    // Railway single-service: build into ../backend/public so Express serves it.
+    // VERCEL=1 is set automatically by Vercel's build env.
+    outDir: process.env.VERCEL || process.env.NETLIFY ? 'dist' : '../backend/public',
     emptyOutDir: true,
   },
 });
